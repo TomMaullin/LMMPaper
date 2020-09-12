@@ -43,6 +43,6 @@ Further details can be found in `results/ParameterEstimationSimulations.ipynb` a
 The `TwinExample` folder contains the following files:
 
  - `ACE.py`: Functions used to perform parameter estimation for the ACE model.
- - `hcp2blocks.m`: Function which categorizes family units by type. This code is taken from (`andersonwinkler/HCP`)[https://github.com/andersonwinkler/HCP].
+ - `hcp2blocks.m`: Function which categorizes family units by type. This code is taken from [`andersonwinkler/HCP`](https://github.com/andersonwinkler/HCP).
 
 Further details can be found in `results/TwinsExample.ipynb`.
