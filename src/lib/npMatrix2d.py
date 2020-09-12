@@ -2346,7 +2346,7 @@ def get_swdf_F2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs):
 # - `df`: The Sattherthwaithe degrees of freedom estimate.
 #
 # ============================================================================
-def get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs, Hessian=False, chol=True): 
+def get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs, chol=True): 
 
   # Get D(I+Z'ZD)^(-1)
   DinvIplusZtZD = np.linalg.solve(np.eye(ZtZ.shape[1]) + D @ ZtZ, D)
@@ -2410,10 +2410,9 @@ def get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs, Hessian
     # Jacobian for transforming sigma2 to sigma
     J = np.array([[2]])*np.sqrt(sigma2)
     for k in np.arange(len(nraneffs)):
+
       # Add block
       chol_mod = elimMatdict[k] @ np.kron(cholDict[k],np.eye(nraneffs[k])).transpose() @ (np.eye(nraneffs[k]**2) + comMatdict[k]) @ dupMatTdict[k].transpose()
-      print(chol_mod)
-      print(type(chol_mod))
       J = scipy.linalg.block_diag(J, chol_mod)
 
     # ------------------------------------------------------------------
@@ -2427,33 +2426,6 @@ def get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs, Hessian
 
     # Calculate df
     df = 2*(S2**2)/(dS2.transpose() @ np.linalg.solve(InfoMat, dS2))
-    
-
-  if Hessian==True:
-    # 2nd order approximation
-    print('Trying out Hessian computation')
-    Hess = get_HessS22D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2)
-
-    print('Hess')
-    print(Hess)
-    print('Infomat')
-    print(InfoMat)
-    print('Infomat inv')
-    print(np.linalg.pinv(InfoMat))
-
-    if chol==True:
-
-      Hess = J @ Hess @ J.transpose()
-
-    SecondOrder = np.trace(Hess @ np.linalg.pinv(InfoMat))**2
-
-    print('2nd order')
-    print(SecondOrder)
-
-    print('Sigma2')
-    print(sigma2)
-
-    df = 2*(S2**2)/(dS2.transpose() @ np.linalg.solve(InfoMat, dS2) + SecondOrder)
 
   # Return df
   return(df)
@@ -2549,8 +2521,13 @@ def get_dS22D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2):
 
   return(dS2)
 
-#MARKERtTable
+# Deserted idea: This calculates the Hessian for a higher order Taylor expansion for degrees of
+# freedom estimation. I believe this actually worked; the problem was all the higher order moments
+# actually were coming out to zero and the computation took a while. So this idea was abandoned.
 def get_HessS22D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2):
+
+
+  print('active')
 
   # ZtX
   ZtX = XtZ.transpose()
@@ -2715,9 +2692,6 @@ def get_HessS22D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2):
     # Output into Hessian
     Hess[IndsDk,0:1]= dupMatTdict[k] @ sumBkB
     Hess[0:1,IndsDk]= Hess[IndsDk,0:1].transpose()
-
-  print('Hess')
-  print(Hess)
     
   # Return the Hessian... phew
   return(Hess)

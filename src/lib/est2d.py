@@ -368,8 +368,6 @@ def cSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
     #-------------------------------------------------------------------------------
     bvals = DinvIplusZtZD @ Zte
 
-    print(llhcurr)
-
     return(paramVector, bvals, nit, llhcurr)
 
 

@@ -19,8 +19,9 @@ from npMatrix3d import *
 
 # ==================================================================================
 #
+# The below code runs multiple simulations in serial. It takes the following inputs:
 #
-#
+# ----------------------------------------------------------------------------------
 #
 # - OutDir: The output directory.
 # - desInd: Integer value between 1 and 3 representing which design to run. The 
@@ -29,6 +30,9 @@ from npMatrix3d import *
 #           - Design 2: nlevels=[50,10], nraneffs=[3,2]
 #           - Design 3: nlevels=[100,50,10], nraneffs=[4,3,2]
 # - nsim: Number of simulations (default=1000)
+# - mode: String indicating whether to run parameter estimation simulations (mode=
+#         'param') or T statistic simulations (mode='Tstat').
+# - REML: Boolean indicating whether to use ML or ReML estimation. 
 #
 # ----------------------------------------------------------------------------------
 #
@@ -47,12 +51,21 @@ def sim2D(desInd, OutDir, nsim=1000, mode='param', REML=False):
 # The below simulates random test data and runs all methods described in the LMM 
 # paper on the simulated data. It requires the following inputs:
 #
-# - OutDir: The output directory.
+# ----------------------------------------------------------------------------------
+#
 # - desInd: Integer value between 1 and 3 representing which design to run. The 
 #           designs are as follows:
 #           - Design 1: nlevels=[50], nraneffs=[2]
 #           - Design 2: nlevels=[50,10], nraneffs=[3,2]
 #           - Design 3: nlevels=[100,50,10], nraneffs=[4,3,2]
+# - SimInd: An index to represent the simulation. All output for this simulation will
+#           be saved in files with the index specified by this argument. The
+#           simulation with index 1 will also perform any necessary additional setup
+#           and should therefore be run before any others.
+# - OutDir: The output directory.
+# - mode: String indicating whether to run parameter estimation simulations (mode=
+#         'param') or T statistic simulations (mode='Tstat').
+# - REML: Boolean indicating whether to use ML or ReML estimation. 
 #
 # ----------------------------------------------------------------------------------
 #
@@ -69,7 +82,7 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
     #===============================================================================
 
     # Decide whether we wish to run T statistics/degrees of freedom estimation
-    if mode=='param'
+    if mode=='param':
         runDF = False
     else:
         runDF = True
@@ -107,7 +120,7 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         X = None
         Z = None
 
-    # Otheriwse read the factor vectors, X and Z in from file.
+    # Otherwise read the factor vectors, X and Z in from file.
     else:
 
         # Initialize empty factor vectors dict
@@ -125,7 +138,7 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
     Y,X,Z,nlevels,nraneffs,beta,sigma2,b,D, fvs = genTestData2D(n=n, p=5, nlevels=nlevels, nraneffs=nraneffs, save=True, simInd=simInd, desInd=desInd, OutDir=OutDir, factorVectors=fvs, X=X, Z=Z)
 
     # Save the new factor vectors if this is the first run.
-    if simInd == 1:
+    if simInd == 1 and runDF:
 
         # Loop through the factors saving them
         for i in range(len(nlevels)):
@@ -181,13 +194,14 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         for j in np.arange(nraneffs[k]*(nraneffs[k]+1)//2):
             indexVec = np.append(indexVec, 'sigma2*D'+str(k+1)+','+str(j+1))
 
-    # T value p value and Satterthwaite degrees of freedom estimate.
-    indexVec = np.append(indexVec,'T')
-    indexVec = np.append(indexVec,'p')
-    indexVec = np.append(indexVec,'swdf')
+    if runDF:
+        # T value p value and Satterthwaite degrees of freedom estimate.
+        indexVec = np.append(indexVec,'T')
+        indexVec = np.append(indexVec,'p')
+        indexVec = np.append(indexVec,'swdf')
 
     # Construct dataframe
-    results = pd.DataFrame(index=indexVec, columns=['Truth', 'FS', 'pFS', 'SFS', 'pSFS', 'cSFS', 'FS (hess)'])
+    results = pd.DataFrame(index=indexVec, columns=['Truth', 'FS', 'pFS', 'SFS', 'pSFS', 'cSFS'])
 
     # ------------------------------------------------------------------------------------
     # Truth
@@ -357,15 +371,10 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
 
     # Get T statistic, p value and Satterthwaite degrees of freedom
     if runDF:
-        T,Pval,df = simT(paramVector_FS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n, Hessian=False)
+        T,Pval,df = simT(paramVector_FS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n)
         results.at[indexVec[p+4+2*qu],'FS']=T[0,0]
         results.at[indexVec[p+5+2*qu],'FS']=Pval[0,0]
         results.at[indexVec[p+6+2*qu],'FS']=df[0,0]
-
-    # T,Pval,df = simT(paramVector_FS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n, Hessian=True)
-    # results.at[indexVec[p+4+2*qu],'FS (hess)']=T[0,0]
-    # results.at[indexVec[p+5+2*qu],'FS (hess)']=Pval[0,0]
-    # results.at[indexVec[p+6+2*qu],'FS (hess)']=df[0,0]
 
     #===============================================================================
     # SFS
@@ -442,10 +451,10 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
 
 
 
-def performanceTables(desInd, OutDir):
+def performanceTables(desInd, OutDir, nsim=1000):
 
     # Make row indices
-    row = ['sim'+str(i) for i in range(1,1001)]
+    row = ['sim'+str(i) for i in range(1,nsim+1)]
 
     # Make column indices
     col = ['FS','pFS','SFS','pSFS','cSFS','lmer']
@@ -460,7 +469,7 @@ def performanceTables(desInd, OutDir):
     # Make sure pandas knows the table is numeric
     timesTable = timesTable.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
@@ -476,6 +485,10 @@ def performanceTables(desInd, OutDir):
 
     timesTable.to_csv(os.path.join(OutDir,'timesTable.csv'))
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of computation times') 
     print(timesTable.describe().to_string())
 
     #-----------------------------------------------------------------------------
@@ -488,7 +501,7 @@ def performanceTables(desInd, OutDir):
     # Make sure pandas knows the table is numeric
     nitTable = nitTable.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
@@ -504,6 +517,10 @@ def performanceTables(desInd, OutDir):
 
     nitTable.to_csv(os.path.join(OutDir,'nitTable.csv'))
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of number of iterations')
     print(nitTable.describe().to_string())
 
     #-----------------------------------------------------------------------------
@@ -516,7 +533,7 @@ def performanceTables(desInd, OutDir):
     # Make sure pandas knows the table is numeric
     llhTable = nitTable.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
@@ -532,12 +549,16 @@ def performanceTables(desInd, OutDir):
 
     llhTable.to_csv(os.path.join(OutDir,'llhTable.csv'))
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of maximized log-likelihoods')
     print(llhTable.describe().to_string())
 
-def differenceMetrics(desInd, OutDir):
+def differenceMetrics(desInd, OutDir, nsim=1000):
 
     # Make row indices
-    row = ['sim'+str(i) for i in range(1,1001)]
+    row = ['sim'+str(i) for i in range(1,nsim+1)]
 
     # Make column indices
     col = ['FS','pFS','SFS','pSFS','cSFS','lmer']
@@ -554,13 +575,13 @@ def differenceMetrics(desInd, OutDir):
     diffTableBetas = diffTableBetas.apply(pd.to_numeric)
     diffTableVar = diffTableVar.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
 
         # Read in results file
-        results_table = pd.read_csv(results_file, index_col=0).drop(['FS..hess.'], axis=1)
+        results_table = pd.read_csv(results_file, index_col=0)
 
         # Get the betas
         simBetas = results_table.loc['beta1':'beta5',:]
@@ -590,7 +611,15 @@ def differenceMetrics(desInd, OutDir):
         diffTableBetas.loc['sim'+str(simInd),:]=maxRelDiffBetas
         diffTableVar.loc['sim'+str(simInd),:]=maxRelDiffVar
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MRD values for beta estimates (compared to lmer)')
     print(diffTableBetas.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MRD values for variance estimates (compared to lmer)')
     print(diffTableVar.describe().to_string())
 
     diffTableVar.to_csv(os.path.join(OutDir,'diffTableVar_lmer_abs.csv'))
@@ -608,13 +637,13 @@ def differenceMetrics(desInd, OutDir):
     diffTableBetas = diffTableBetas.apply(pd.to_numeric)
     diffTableVar = diffTableVar.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
 
         # Read in results file
-        results_table = pd.read_csv(results_file, index_col=0).drop(['FS..hess.'], axis=1)
+        results_table = pd.read_csv(results_file, index_col=0)
 
         # Get the betas
         simBetas = results_table.loc['beta1':'beta5',:]
@@ -647,7 +676,15 @@ def differenceMetrics(desInd, OutDir):
     diffTableVar.to_csv(os.path.join(OutDir,'diffTableVar_truth_abs.csv'))
     diffTableBetas.to_csv(os.path.join(OutDir,'diffTableBetas_truth_abs.csv'))
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MRD values for beta estimates (compared to truth)')    
     print(diffTableBetas.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MRD values for variance estimates (compared to truth)') 
     print(diffTableVar.describe().to_string())
 
     #-----------------------------------------------------------------------------
@@ -662,13 +699,13 @@ def differenceMetrics(desInd, OutDir):
     diffTableBetas = diffTableBetas.apply(pd.to_numeric)
     diffTableVar = diffTableVar.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
 
         # Read in results file
-        results_table = pd.read_csv(results_file, index_col=0).drop(['FS..hess.'], axis=1)
+        results_table = pd.read_csv(results_file, index_col=0)
 
         # Get the betas
         simBetas = results_table.loc['beta1':'beta5',:]
@@ -698,7 +735,15 @@ def differenceMetrics(desInd, OutDir):
         diffTableBetas.loc['sim'+str(simInd),:]=maxRelDiffBetas
         diffTableVar.loc['sim'+str(simInd),:]=maxRelDiffVar
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MAE values for beta estimates (compared to lmer)') 
     print(diffTableBetas.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MAE values for variance estimates (compared to lmer)') 
     print(diffTableVar.describe().to_string())
 
     diffTableVar.to_csv(os.path.join(OutDir,'diffTableVar_lmer_rel.csv'))
@@ -716,13 +761,13 @@ def differenceMetrics(desInd, OutDir):
     diffTableBetas = diffTableBetas.apply(pd.to_numeric)
     diffTableVar = diffTableVar.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
 
         # Read in results file
-        results_table = pd.read_csv(results_file, index_col=0).drop(['FS..hess.'], axis=1)
+        results_table = pd.read_csv(results_file, index_col=0)
 
         # Get the betas
         simBetas = results_table.loc['beta1':'beta5',:]
@@ -755,7 +800,15 @@ def differenceMetrics(desInd, OutDir):
     diffTableVar.to_csv(os.path.join(OutDir,'diffTableVar_truth_rel.csv'))
     diffTableBetas.to_csv(os.path.join(OutDir,'diffTableBetas_truth_rel.csv'))
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MAE values for beta estimates (compared to truth)') 
     print(diffTableBetas.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of MAE values for variance estimates (compared to truth)') 
     print(diffTableVar.describe().to_string())
 
 
@@ -778,8 +831,6 @@ def groundTruth_TDF(X, Z, beta, sigma2, D, L, nlevels, nraneffs, tol):
     # Get ground truth degrees of freedom
     v = 2*(True_varLB**2)/var_est_varLB
 
-    print('v')
-    print(v)
     return(v)
 
 # Estimates \hat{Var}(L\hat{beta})
@@ -854,23 +905,19 @@ def get_VarhatLB2D(X, Z, beta, sigma2, D, L, nlevels, nraneffs, tol):
     # Get variance of Lbeta estimates
     varLB = get_varLB3D(L, XtX, XtZ, DinvIplusZtZD, sigma2, nraneffs)
 
-    print('est varLB')
-    print(varLB.shape)
-
+    # Estimated variance of varLB
     varofvarLB = np.var(varLB,axis=0)
-
-    print(varofvarLB)
 
     return(varofvarLB.reshape((1,1)))
 
 
-def tableOutput(desInd, OutDir):
+def tOutput(desInd, OutDir, nsim=1000):
 
     # Make row indices
-    row = ['sim'+str(i) for i in range(1,1001)]
+    row = ['sim'+str(i) for i in range(1,nsim+1)]
 
     # Make column indices
-    col = ['Truth','FS','FS..hess.','lmer']
+    col = ['Truth','FS','lmer']
 
     #-----------------------------------------------------------------------------
     # Work out timing stats
@@ -886,7 +933,7 @@ def tableOutput(desInd, OutDir):
     pTable = pTable.apply(pd.to_numeric)
     dfTable = dfTable.apply(pd.to_numeric)
 
-    for simInd in range(1,1001):
+    for simInd in range(1,nsim+1):
         
         # Name of results file
         results_file = os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv')
@@ -895,22 +942,37 @@ def tableOutput(desInd, OutDir):
         results_table = pd.read_csv(results_file, index_col=0)
 
         # Get the T, P and df values
-        simT = results_table.loc['T',['Truth','FS','FS..hess.','lmer']]
-        simp = results_table.loc['p',['Truth','FS','FS..hess.','lmer']]
-        simdf = results_table.loc['swdf',['Truth','FS','FS..hess.','lmer']]
+        simT = results_table.loc['T',['Truth','FS','lmer']]
+        simp = results_table.loc['p',['Truth','FS','lmer']]
+        simdf = results_table.loc['swdf',['Truth','FS','lmer']]
 
         # Add them to the tables
         tTable.loc['sim'+str(simInd),:]=simT
         pTable.loc['sim'+str(simInd),:]=simp
         dfTable.loc['sim'+str(simInd),:]=simdf
 
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of T statistics') 
     tTable.to_csv(os.path.join(OutDir,'tTable.csv'))
+    print(tTable.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of P values') 
     pTable.to_csv(os.path.join(OutDir,'pTable.csv'))
+    print(pTable.describe().to_string())
+    print(' ')
+    print('--------------------------------------------------------------------------')
+    print(' ')
+    print('Summary of degrees of freedom estimates') 
     dfTable.to_csv(os.path.join(OutDir,'dfTable.csv'))
+    print(dfTable.describe().to_string())
 
 
 
-def simT(paramVec, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n, Hessian = False):
+def simT(paramVec, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n):
 
     # Scalar quantities
     p = XtX.shape[1] # (Number of Fixed Effects parameters)
@@ -962,7 +1024,7 @@ def simT(paramVec, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevel
     T = get_T2D(L, XtX, XtZ, DinvIplusZtZD, beta, sigma2)
 
     # Get Satterthwaite estimate of degrees of freedom
-    df = get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs, Hessian)
+    df = get_swdf_T2D(L, D, sigma2, XtX, XtZ, ZtX, ZtZ, n, nlevels, nraneffs)
 
     # Get p value
     # Do this seperately for >0 and <0 to avoid underflow

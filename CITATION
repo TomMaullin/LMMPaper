@@ -1,0 +1,9 @@
+@misc{MaullinNichols2020,
+  author = {Maullin-Sapey, T. and Nichols, T.},
+  title = {A Fisher Scoring approach for crossed multiple-factor Linear Mixed Models: Examples and Simulations},
+  year = {2020},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/TomMaullin/LMMPaper}},
+  commit = {Enter commit tag here}
+}

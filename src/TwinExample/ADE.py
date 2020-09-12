@@ -73,7 +73,7 @@ from fileio import *
 #  - `nit`: The number of iterations taken to converge.
 #
 # ============================================================================
-def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stDict, Structmat2nd, reml=False):
+def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stDict, Constrmat2nd, reml=False):
     
     # ------------------------------------------------------------------------------
     # Product matrices of use
@@ -145,7 +145,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
     for k in np.arange(r):
 
         # Get FDk
-        FDk[2*k:(2*k+2),2*k:(2*k+2)]= nlevels[k]*Structmat1stDict[k] @ Structmat1stDict[k].transpose()
+        FDk[2*k:(2*k+2),2*k:(2*k+2)]= nlevels[k]*Constrmat1stDict[k] @ Constrmat1stDict[k].transpose()
 
         # Get the indices for the factors 
         Ik = fac_indices2D(k, nlevels, nraneffs)
@@ -154,19 +154,19 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
         Ek = e[Ik,:].reshape((nlevels[k],nraneffs[k])).transpose()
 
         # Get Sk*dl/dDk
-        SkdldDk[2*k:(2*k+2),:] = Structmat1stDict[k] @ mat2vec2D(nlevels[k]-Ek @ Ek.transpose()/sigma2)
+        SkdldDk[2*k:(2*k+2),:] = Constrmat1stDict[k] @ mat2vec2D(nlevels[k]-Ek @ Ek.transpose()/sigma2)
 
     # Initial vec(sigma^2A/sigma^2E, sigma^2D/sigma^2E)
-    dDdAD = 2*Structmat2nd
-    vecAE = np.linalg.pinv(dDdAD @ FDk @ dDdAD.transpose()) @ dDdAD @ SkdldDk
+    dDdAD = 2*Constrmat2nd
+    tau2 = np.linalg.pinv(dDdAD @ FDk @ dDdAD.transpose()) @ dDdAD @ SkdldDk
 
-    #vecAE[1,0]=0
+    #tau2[1,0]=0
 
     # Inital D (dict version)
     Ddict = dict()
     for k in np.arange(len(nraneffs)):
         # Construct D using sigma^2A and sigma^2D
-        Ddict[k] = vecAE[0,0]**2*KinshipA[k] + vecAE[1,0]**2*KinshipD[k]
+        Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipD[k]
 
     # ------------------------------------------------------------------------------
     # Obtain (I+D)^{-1}
@@ -317,14 +317,14 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
             Ek = e[Ik,:].reshape((nlevels[k],nraneffs[k])).transpose()
             
             # # Calculate S'dl/dDk
-            # SkdldDk2[2*k:(2*k+2),:] =  Structmat1stDict[k] @ mat2vec2D((invIplusDdict[k] @ Ek2 @ Ek2.transpose() @ invIplusDdict[k]/sigma22[0,0])-nlevels[k]*invIplusDdict[k])
+            # SkdldDk2[2*k:(2*k+2),:] =  Constrmat1stDict[k] @ mat2vec2D((invIplusDdict[k] @ Ek2 @ Ek2.transpose() @ invIplusDdict[k]/sigma22[0,0])-nlevels[k]*invIplusDdict[k])
 
             if not reml:
-                S = S + Structmat1stDict[k] @ mat2vec2D(forceSym2D((invIplusDdict[k] @ Ek @ Ek.transpose() @ invIplusDdict[k]/sigma2[0,0])-nlevels[k]*invIplusDdict[k]))
+                S = S + Constrmat1stDict[k] @ mat2vec2D(forceSym2D((invIplusDdict[k] @ Ek @ Ek.transpose() @ invIplusDdict[k]/sigma2[0,0])-nlevels[k]*invIplusDdict[k]))
             else:
                 CurrentS = mat2vec2D(forceSym2D((invIplusDdict[k] @ Ek @ Ek.transpose() @ invIplusDdict[k]/sigma2[0,0])-nlevels[k]*invIplusDdict[k]))
                 CurrentS =  CurrentS + np.kron(invIplusDdict[k],invIplusDdict[k]) @ XkXdict[k].transpose() @ mat2vec2D(np.linalg.pinv(XtinvVX))
-                S = S + Structmat1stDict[k] @ CurrentS
+                S = S + Constrmat1stDict[k] @ CurrentS
 
             #-----------------------------------------------------------------------
             # Work out covariance of derivative of D_k
@@ -334,13 +334,13 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
             kronTerm = np.kron(invIplusDdict[k],invIplusDdict[k])
 
             # Get F for this term
-            F = F + forceSym2D(nlevels[k]*Structmat1stDict[k] @ kronTerm @ Structmat1stDict[k].transpose())
+            F = F + forceSym2D(nlevels[k]*Constrmat1stDict[k] @ kronTerm @ Constrmat1stDict[k].transpose())
 
         #-----------------------------------------------------------------------
         # Update step
         #-----------------------------------------------------------------------
 
-        vecAE = vecAE + forceSym2D(0.5*lam*np.linalg.pinv(forceSym2D(F)*(vecAE @ vecAE.transpose()))) @ (vecAE*S)
+        tau2 = tau2 + forceSym2D(0.5*lam*np.linalg.pinv(forceSym2D(F)*(tau2 @ tau2.transpose()))) @ (tau2*S)
         
         #-----------------------------------------------------------------------
         # Add D_k back into D
@@ -349,7 +349,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
         Ddict = dict()
         for k in np.arange(len(nraneffs)):
             # Construct D using sigma^2A and sigma^2D
-            Ddict[k] = forceSym2D(vecAE[0,0]**2*KinshipA[k] + vecAE[1,0]**2*KinshipD[k])
+            Ddict[k] = forceSym2D(tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipD[k])
 
         # ------------------------------------------------------------------------------
         # Obtain (I+D)^{-1}
@@ -402,7 +402,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
     # ------------------------------------------------------------------------------
     # Save parameters
     # ------------------------------------------------------------------------------
-    paramVector = np.concatenate((beta, np.sqrt(sigma2), vecAE))
+    paramVector = np.concatenate((beta, np.sqrt(sigma2), tau2))
 
     print('Nit: ', nit)
         
@@ -410,7 +410,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Structmat1stD
 
 
 
-def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Structmat1stDict): 
+def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Constrmat1stDict): 
 
     # Work out n and p
     n = X.shape[0]
@@ -419,22 +419,22 @@ def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Stru
     # Work out beta, sigma2 and the vector of variance components
     beta = paramVec[0:p,:]
     sigma2 = paramVec[p,0]**2
-    vecAE = paramVec[(p+1):,:]
+    tau2 = paramVec[(p+1):,:]
 
     # Get D in dictionary form
     Ddict = dict()
     for k in np.arange(len(nraneffs)):
         # Construct D using sigma^2A and sigma^2D
-        Ddict[k] = vecAE[0,0]**2*KinshipA[k] + vecAE[1,0]**2*KinshipC[k]
+        Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipC[k]
 
     # Get S^2 (= Var(L\beta))
     S2 = get_varLB_ADE_2D(L, X, Ddict, sigma2, nlevels, nraneffs)
 
     # Get derivative of S^2
-    dS2 = get_dS2_ADE_2D(L, X, Ddict, vecAE, sigma2, nlevels, nraneffs, Structmat1stDict)
+    dS2 = get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict)
 
     # Get Fisher information matrix
-    InfoMat = get_InfoMat_ADE_2D(Ddict, vecAE, sigma2, n, nlevels, nraneffs, Structmat1stDict)
+    InfoMat = get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict)
 
     # Calculate df estimator
     df = 2*(S2**2)/(dS2.transpose() @ np.linalg.solve(InfoMat, dS2))
@@ -495,7 +495,7 @@ def get_covB_ADE_2D(X, Ddict, sigma2, nlevels, nraneffs):
     # Return result
     return(covB)
 
-def get_dS2_ADE_2D(L, X, Ddict, vecAE, sigma2, nlevels, nraneffs, Structmat1stDict):
+def get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict):
 
     # Work out r
     r = len(nlevels)
@@ -565,15 +565,15 @@ def get_dS2_ADE_2D(L, X, Ddict, vecAE, sigma2, nlevels, nraneffs, Structmat1stDi
         dS2dvechDk = sigma2*dS2dvechDk
 
         # Add to dS2
-        dS2[1:,0:1] = dS2[1:,0:1] + Structmat1stDict[k] @ dS2dvechDk.reshape((nraneffs[k]**2,1))
+        dS2[1:,0:1] = dS2[1:,0:1] + Constrmat1stDict[k] @ dS2dvechDk.reshape((nraneffs[k]**2,1))
 
-    # Multiply by 2vecAE elementwise
-    dS2[1:,0:1] = 2*vecAE*dS2[1:,0:1]
+    # Multiply by 2tau2 elementwise
+    dS2[1:,0:1] = 2*tau2*dS2[1:,0:1]
 
     return(dS2)
 
 
-def get_InfoMat_ADE_2D(Ddict, vecAE, sigma2, n, nlevels, nraneffs, Structmat1stDict):
+def get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict):
 
     # Number of random effects, q
     q = np.sum(np.dot(nraneffs,nlevels))
@@ -596,10 +596,10 @@ def get_InfoMat_ADE_2D(Ddict, vecAE, sigma2, n, nlevels, nraneffs, Structmat1stD
     for k in np.arange(len(nraneffs)):
 
         # Get covariance of dldsigma and dldD      
-        H = H + Structmat1stDict[k] @ get_covdldDkdsigma2_ADE_2D(k, sigma2, nlevels, nraneffs, Ddict).reshape((nraneffs[k]**2,1))
+        H = H + Constrmat1stDict[k] @ get_covdldDkdsigma2_ADE_2D(k, sigma2, nlevels, nraneffs, Ddict).reshape((nraneffs[k]**2,1))
 
     # Assign to the relevant block
-    FisherInfoMat[1:,0:1] = 2*vecAE*H
+    FisherInfoMat[1:,0:1] = 2*tau2*H
     FisherInfoMat[0:1,1:] = FisherInfoMat[1:,0:1].transpose()
 
     # Initial zero matrix to hold F
@@ -615,10 +615,10 @@ def get_InfoMat_ADE_2D(Ddict, vecAE, sigma2, n, nlevels, nraneffs, Structmat1stD
         kronTerm = np.kron(np.linalg.pinv(np.eye(nraneffs[k])+Ddict[k]),np.linalg.pinv(np.eye(nraneffs[k])+Ddict[k]))
 
         # Get F for this term
-        F = F + forceSym2D(nlevels[k]*Structmat1stDict[k] @ kronTerm @ Structmat1stDict[k].transpose())
+        F = F + forceSym2D(nlevels[k]*Constrmat1stDict[k] @ kronTerm @ Constrmat1stDict[k].transpose())
 
-    # Multiply by 2vecAE elementwise on both sides
-    F = 2*forceSym2D(F)*(vecAE @ vecAE.transpose())
+    # Multiply by 2tau2 elementwise on both sides
+    F = 2*forceSym2D(F)*(tau2 @ tau2.transpose())
 
     # Assign to the relevant block
     FisherInfoMat[1:, 1:] = F
@@ -657,13 +657,13 @@ def get_T_ADE_2D(L, X, paramVec, KinshipA, KinshipC, nlevels, nraneffs):
     # Work out beta, sigma2 and the vector of variance components
     beta = paramVec[0:p,:]
     sigma2 = paramVec[p,0]**2
-    vecAE = paramVec[(p+1):,:]
+    tau2 = paramVec[(p+1):,:]
 
     # Get D in dictionary form
     Ddict = dict()
     for k in np.arange(len(nraneffs)):
         # Construct D using sigma^2A and sigma^2D
-        Ddict[k] = vecAE[0,0]**2*KinshipA[k] + vecAE[1,0]**2*KinshipC[k]
+        Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipC[k]
     
     # Work out the rank of L
     rL = np.linalg.matrix_rank(L)

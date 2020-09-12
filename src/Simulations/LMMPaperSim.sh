@@ -15,8 +15,10 @@ OutDir= #...
 python -c "from sim import LMMPaperSim; LMMPaperSim.sim2D(desInd=$desInd, OutDir='$OutDir')"
 
 # The below command will collate the results of all of the simulations run for the specified design into tables
-# which are saved as csv files.
-python -c "from sim import LMMPaperSim; LMMPaperSim.tableOutput(desInd=$desInd, OutDir='$OutDir')"
+# which are saved as csv files. Comment out functions if you do not need to use them.
+python -c "from sim import LMMPaperSim; LMMPaperSim.differenceMetrics(desInd=$desInd, OutDir='$OutDir')"
+python -c "from sim import LMMPaperSim; LMMPaperSim.performanceTables(desInd=$desInd, OutDir='$OutDir')"
+python -c "from sim import LMMPaperSim; LMMPaperSim.tOutput(desInd=$desInd, OutDir='$OutDir')"
 
 # The following command can be used to run an individual simulation. If you wish to submit each individual simlation
 # to the cluster seperately you can use this command. To do this, follow the below instructions.
