@@ -1,1 +1,3 @@
 # data folder
+
+This folder contains the data for the SAT score example (in the `SATExample` sub-directory). The data for the SAT score example is from [the longitudinal evaluation of school change and performance (LESCP) dataset](https://www2.ed.gov/offices/OUS/PES/esed/lescp_highlights.html); a dataset which is publicly available and free to use (for example, it can be found as one of the example datasets in the HLM software package). Additionally, when running the simulation notebooks `results/ParameterEstimationSimulations.ipynb` and `results/TStatisticSimulations.ipynb`, any simulated data generated can be found here in sub-directories named `ParamSimulation` and `TstatSimulation`, respectively.
