@@ -7,29 +7,28 @@ import scipy.sparse
 import os
 np.set_printoptions(threshold=np.inf)
 from npMatrix2d import *
-from fileio import *
 
 # ============================================================================
 # 
-# This below function performs pseudo Fisher Scoring for the ADE Linear
-# Mixed Model. It is based on the update rules:
+# This below function performs pseudo Simplified Fisher Scoring for the ACE
+# Linear Mixed Model. It is based on the update rules:
 #
 #               beta = (X'V^(-1)X)^(-1)(X'V^(-1)Y)
 #
 #                    sigma2E = e'V^(-1)e/n
 #
-#               vec(\sigma2A,\sigma2D) = \theta_f + 
-#       lam*I(vec(\sigma2A,\sigma2D))^+ (dl/dvec(\sigma2A,\sigma2D)
+#               vec(\tau2A,\tau2C) = \theta_f + 
+#       lam*I(vec(\tau2A,\tau2C))^+ (dl/dvec(\tau2A,\tau2C)
 #
 # Where:
 #  - lam is a scalar stepsize.
-#  - \sigma2E is the environmental variance in the ADE model
-#  - \sigma2A, \sigma2D are the A and D variance in the ADE model divided by
-#    the E variance in the ADE model
-#  - I(vec(\sigma2A,\sigma2D)) is the Fisher Information matrix of
-#    vec(\sigma2A,\sigma2D).
-#  - dl/dvec(\sigma2A,\sigma2D) is the derivative of the log likelihood with
-#    respect to vec(\sigma2A,\sigma2D). 
+#  - \sigma2E is the environmental variance in the ACE model
+#  - \tau2A, \tau2C are the A and C variance in the ACE model divided by
+#    the E variance in the ACE model
+#  - I(vec(\tau2A,\tau2C)) is the Fisher Information matrix of
+#    vec(\tau2A,\tau2C).
+#  - dl/dvec(\tau2A,\tau2C) is the derivative of the log likelihood with
+#    respect to vec(\tau2A,\tau2C). 
 #  - e is the residual vector (e=Y-X\beta)
 #  - V is the matrix (I+ZDZ')
 #
@@ -42,25 +41,28 @@ from fileio import *
 #
 # ----------------------------------------------------------------------------
 #
-#  - `XtX`: X transpose multiplied by X.
-#  - `XtY`: X transpose multiplied by Y.
-#  - `XtZ`: X transpose multiplied by Z. 
-#  - `YtX`: Y transpose multiplied by X.
-#  - `YtY`: Y transpose multiplied by Y.
-#  - `YtZ`: Y transpose multiplied by Z.
-#  - `ZtX`: Z transpose multiplied by X.
-#  - `ZtY`: Z transpose multiplied by Y.
-#  - `ZtZ`: Z transpose multiplied by Z.
-# - `nlevels`: A vector containing the number of levels for each factor, 
-#              e.g. `nlevels=[3,4]` would mean the first factor has 3 levels
-#              and the second factor has 4 levels.
-# - `nraneffs`: A vector containing the number of random effects for each
-#               factor, e.g. `nraneffs=[2,1]` would mean the first factor has
-#               random effects and the second factor has 1 random effect.
-#  - `tol`: A scalar tolerance value. Iteration stops once successive 
-#           log-likelihood values no longer exceed `tol`.
-#  - `n`: The number of observations.
-#  - `init_paramVector`: (Optional) initial estimates of the parameter vector.
+# - X: The fixed effects design matrix.
+# - Y: The response vector.
+# - nlevels: A vector containing the number of levels for each factor,
+#            e.g. `nlevels=[3,4]` would mean the first factor has 3
+#            levels and the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+# - tol: Convergence tolerance for the parameter estimation method.
+# - KinshipA: A dictionary of kinship matrices for the addtive genetic effect,
+#             one corresponding to each family structure type in the model.
+# - KinshipC: A dictionary of kinship matrices for the common environmental
+#             effect, one corresponding to each family structure type in the
+#             model.
+# - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
+#                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
+#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     more information. 
+# - Constrmat2nd: A constraint matrix which maps the vector [\tilde{Tau2}_0,...
+#                 \tilde{Tau2}_r] to \tau2. See Appendix 5.7.2 of the LMM
+#                 Fisher Scoring paper for more information.
+# - reml: Restricted maximum likelihood estimation. Default: False.
 #
 # ----------------------------------------------------------------------------
 #
@@ -68,12 +70,11 @@ from fileio import *
 #
 # ----------------------------------------------------------------------------
 #
-#  - `paramVector`: The parameter vector (beta,sigma2,vech(D_1),...,vech(D_r))
-#  - `bvals`: Estimates of the random effects vector, b.
-#  - `nit`: The number of iterations taken to converge.
+#  - `paramVector`: The parameter vector (beta,sigma2,tau2A,tau2C)
+#  - `llh`: The log-likelihood value following optimization.
 #
 # ============================================================================
-def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stDict, Constrmat2nd, reml=False):
+def pFS_ACE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipC, Constrmat1stDict, Constrmat2nd, reml=False):
     
     # ------------------------------------------------------------------------------
     # Product matrices of use
@@ -160,13 +161,11 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
     dDdAD = 2*Constrmat2nd
     tau2 = np.linalg.pinv(dDdAD @ FDk @ dDdAD.transpose()) @ dDdAD @ SkdldDk
 
-    #tau2[1,0]=0
-
     # Inital D (dict version)
     Ddict = dict()
     for k in np.arange(len(nraneffs)):
         # Construct D using sigma^2A and sigma^2D
-        Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipD[k]
+        Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipC[k]
 
     # ------------------------------------------------------------------------------
     # Obtain (I+D)^{-1}
@@ -190,6 +189,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
     # Precalculated Kronecker sums
     # ------------------------------------------------------------------------------
 
+    # Initialize empty dictionaries
     XkXdict = dict()
     XkYdict = dict()
 
@@ -229,11 +229,6 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
         # Number of iterations
         nit = nit+1
 
-        # Maximum number of iterations
-        # if nit>100:
-        #     print('nit lim')
-        #     break
-
         #---------------------------------------------------------------------------
         # Update beta
         #---------------------------------------------------------------------------
@@ -241,31 +236,14 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
         XtinvVX = np.zeros((p,p))
         XtinvVY = np.zeros((p,1))
 
-        # XtinvVX2 = np.zeros((p,p))
-        # XtinvVY2 = np.zeros((p,1))
-
 
         # Loop through levels and factors
         for k in np.arange(r):
-            # for j in np.arange(nlevels[k]):
-
-            #     # Get the indices for the factors 
-            #     Ikj = faclev_indices2D(k, j, nlevels, nraneffs)
-
-            #     # Add to sums
-            #     XtinvVX = XtinvVX + forceSym2D(X[Ikj,:].transpose() @ invIplusDdict[k] @ X[Ikj,:])
-            #     XtinvVY = XtinvVY + X[Ikj,:].transpose() @ invIplusDdict[k] @ Y[Ikj,:]
 
             XtinvVX = XtinvVX + vec2mat2D(XkXdict[k] @ mat2vec2D(invIplusDdict[k]),shape=np.array([p,p]))
             XtinvVY = XtinvVY + vec2mat2D(XkYdict[k] @ mat2vec2D(invIplusDdict[k]),shape=np.array([p,1]))
 
-        # print(np.allclose(XtinvVY, XtinvVY2))
-        # print(np.allclose(XtinvVX, XtinvVX2))
-
         beta = np.linalg.solve(forceSym2D(XtinvVX), XtinvVY)
-        # beta2 = np.linalg.pinv(XtinvVX2) @ XtinvVY2
-
-        # print(np.allclose(beta,beta2))
 
         #---------------------------------------------------------------------------
         # Update Residuals, e
@@ -273,15 +251,13 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
         e = Y - X @ beta
         ete = e.transpose() @ e
 
-        # e2 = Y - X @ beta2
-        # ete2 = e2.transpose() @ e2
-
-        # print('etes: ', np.allclose(ete2,ete))
-
         #---------------------------------------------------------------------------
         # Update sigma^2
         #---------------------------------------------------------------------------
+
+        # Initial e'V^{-1}e
         etinvVe = np.zeros((1,1))
+
         # Loop through levels and factors
         for k in np.arange(r):
             for j in np.arange(nlevels[k]):
@@ -292,6 +268,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
                 # Add to sums
                 etinvVe = etinvVe + e[Ikj,:].transpose() @ invIplusDdict[k] @ e[Ikj,:]
 
+        # Calculate sigma^2
         if not reml:
             sigma2 = 1/n*etinvVe
         else:
@@ -349,7 +326,7 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
         Ddict = dict()
         for k in np.arange(len(nraneffs)):
             # Construct D using sigma^2A and sigma^2D
-            Ddict[k] = forceSym2D(tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipD[k])
+            Ddict[k] = forceSym2D(tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipC[k])
 
         # ------------------------------------------------------------------------------
         # Obtain (I+D)^{-1}
@@ -398,19 +375,59 @@ def pFS_ADE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipD, Constrmat1stD
         if llhprev>llhcurr:
             lam = lam/2
 
-
     # ------------------------------------------------------------------------------
     # Save parameters
     # ------------------------------------------------------------------------------
     paramVector = np.concatenate((beta, np.sqrt(sigma2), tau2))
-
-    print('Nit: ', nit)
         
     return(paramVector, llhcurr)
 
-
-
-def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Constrmat1stDict): 
+# ============================================================================
+#
+# The below function estimates the degrees of freedom for an T statistic using
+# a Sattherthwaite approximation method. For, a contrast matrix L, this 
+# estimate is given by:
+#
+#    v = 2(Var(L\beta)^2)/(d'I^{-1}d)
+#
+# Where d is the derivative of Var(L\beta) with respect to the variance 
+# parameter vector \theta = (\sigma^2, \tauA^2, \tauC^2) and I is the
+# Fisher Information matrix of \theta^{ACE}.
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - `L`: A contrast vector.
+# - `paramVec`: Final estimates of the parameter vector.
+# - `nlevels`: A vector containing the number of levels for each factor, e.g.
+#              `nlevels=[3,4]` would mean the first factor has 3 levels and
+#              the second factor has 4 levels.
+# - `nraneffs`: A vector containing the number of random effects for each
+#               factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#               random effects and the second factor has 1 random effect.
+# - KinshipA: A dictionary of kinship matrices for the addtive genetic effect,
+#             one corresponding to each family structure type in the model.
+# - KinshipC: A dictionary of kinship matrices for the common environmental
+#             effect, one corresponding to each family structure type in the
+#             model.
+# - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
+#                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
+#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     more information. 
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - `df`: The Sattherthwaithe degrees of freedom estimate.
+#
+# ============================================================================
+def get_swdf_ACE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Constrmat1stDict): 
 
     # Work out n and p
     n = X.shape[0]
@@ -428,13 +445,13 @@ def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Cons
         Ddict[k] = tau2[0,0]**2*KinshipA[k] + tau2[1,0]**2*KinshipC[k]
 
     # Get S^2 (= Var(L\beta))
-    S2 = get_varLB_ADE_2D(L, X, Ddict, sigma2, nlevels, nraneffs)
+    S2 = get_varLB_ACE_2D(L, X, Ddict, sigma2, nlevels, nraneffs)
 
     # Get derivative of S^2
-    dS2 = get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict)
+    dS2 = get_dS2_ACE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict)
 
     # Get Fisher information matrix
-    InfoMat = get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict)
+    InfoMat = get_InfoMat_ACE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict)
 
     # Calculate df estimator
     df = 2*(S2**2)/(dS2.transpose() @ np.linalg.solve(InfoMat, dS2))
@@ -442,17 +459,80 @@ def get_swdf_ADE_T2D(L, paramVec, X, nlevels, nraneffs, KinshipA, KinshipC, Cons
     # Return df
     return(df)
 
-
-def get_varLB_ADE_2D(L, X, Ddict, sigma2, nlevels, nraneffs):
+# ============================================================================
+#
+# The below function calculates the (in most applications, scalar) variance
+# of L\beta.
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - L: A contrast vector (L can also be a matrix, but this isn't often the
+#      case in practice when using this function).
+# - X: The fixed effects design matrix.
+# - Ddict: Dictionary version of the random effects variance-covariance
+#          matrix.
+# - sigma2: The fixed effects variance (\sigma^2 in the previous notation).
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#              `nlevels=[3,4]` would mean the first factor has 3 levels and
+#              the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - varLB: The (usually scalar) variance of L\beta.
+#
+# ============================================================================
+def get_varLB_ACE_2D(L, X, Ddict, sigma2, nlevels, nraneffs):
 
     # Work out var(LB) = L'(X'V^{-1}X)^{-1}L
-    varLB = L @ get_covB_ADE_2D(X, Ddict, sigma2, nlevels, nraneffs) @ L.transpose()
+    varLB = L @ get_covB_ACE_2D(X, Ddict, sigma2, nlevels, nraneffs) @ L.transpose()
 
     # Return result
     return(varLB)
 
-
-def get_covB_ADE_2D(X, Ddict, sigma2, nlevels, nraneffs):
+# ============================================================================
+#
+# The below function gives the covariance matrix of the beta estimates.
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - L: A contrast vector (L can also be a matrix, but this isn't often the
+#      case in practice when using this function).
+# - X: The fixed effects design matrix.
+# - Ddict: Dictionary version of the random effects variance-covariance
+#          matrix.
+# - sigma2: The fixed effects variance (\sigma^2 in the previous notation).
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#              `nlevels=[3,4]` would mean the first factor has 3 levels and
+#              the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - covB: The covariance of the beta estimates.
+#
+# ============================================================================
+def get_covB_ACE_2D(X, Ddict, sigma2, nlevels, nraneffs):
 
     # Work out p and r
     p = X.shape[1]
@@ -495,7 +575,46 @@ def get_covB_ADE_2D(X, Ddict, sigma2, nlevels, nraneffs):
     # Return result
     return(covB)
 
-def get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict):
+
+# ============================================================================
+#
+# The below function calculates the derivative of Var(L\beta) with respect to
+# the variance parameter vector \theta = (\sigma^2, \tauA^2, \tauC^2).
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - L: A contrast vector (L can also be a matrix, but this isn't often the
+#      case in practice when using this function).
+# - X: The fixed effects design matrix.
+# - Ddict: Dictionary version of the random effects variance-covariance
+#          matrix.
+# - tau2: The vector of scaled variance estimates; (\tauA^2, \tauC^2)
+# - sigma2: The fixed effects variance (\sigma^2 in the previous notation).
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#              `nlevels=[3,4]` would mean the first factor has 3 levels and
+#              the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+# - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
+#                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
+#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     more information. 
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - `dS2`: The derivative of var(L\beta) with respect to \theta.
+#
+# ============================================================================
+def get_dS2_ACE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDict):
 
     # Work out r
     r = len(nlevels)
@@ -529,6 +648,7 @@ def get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDic
     # Loop through levels and factors
     for k in np.arange(r):
 
+        # Calculating X'V^{-1}X
         XtinvVX = XtinvVX + vec2mat2D(XkXdict[k] @ mat2vec2D(np.linalg.pinv(np.eye(nraneffs[k])+Ddict[k])),shape=np.array([p,p]))
 
     # New empty array for differentiating S^2 wrt (sigma2, vech(D1),...vech(Dr)).
@@ -567,13 +687,49 @@ def get_dS2_ADE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDic
         # Add to dS2
         dS2[1:,0:1] = dS2[1:,0:1] + Constrmat1stDict[k] @ dS2dvechDk.reshape((nraneffs[k]**2,1))
 
-    # Multiply by 2tau2 elementwise
+    # Multiply by 2tau^2 elementwise
     dS2[1:,0:1] = 2*tau2*dS2[1:,0:1]
 
     return(dS2)
 
 
-def get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict):
+# ============================================================================
+#
+# The below function calculates the derivative of Var(L\beta) with respect to
+# the variance parameter vector \theta = (\sigma^2, \tau_A^2, \tau_C^2).
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - Ddict: Dictionary version of the random effects variance-covariance
+#          matrix.
+# - tau2: The vector of scaled variance estimates; (\tauA^2, \tauC^2)
+# - sigma2: The fixed effects variance (\sigma^2 in the previous notation).
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#              `nlevels=[3,4]` would mean the first factor has 3 levels and
+#              the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+# - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
+#                     `k` in the dictionary must map vec(D_k) to \tilde{Tau}_k.
+#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     more information. 
+# - n: The total number of observations.
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - FisherInfoMat: The Fisher information matrix of \theta.
+#
+# ============================================================================
+def get_InfoMat_ACE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDict):
 
     # Number of random effects, q
     q = np.sum(np.dot(nraneffs,nlevels))
@@ -596,7 +752,7 @@ def get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDi
     for k in np.arange(len(nraneffs)):
 
         # Get covariance of dldsigma and dldD      
-        H = H + Constrmat1stDict[k] @ get_covdldDkdsigma2_ADE_2D(k, sigma2, nlevels, nraneffs, Ddict).reshape((nraneffs[k]**2,1))
+        H = H + Constrmat1stDict[k] @ get_covdldDkdsigma2_ACE_2D(k, sigma2, nlevels, nraneffs, Ddict).reshape((nraneffs[k]**2,1))
 
     # Assign to the relevant block
     FisherInfoMat[1:,0:1] = 2*tau2*H
@@ -627,7 +783,44 @@ def get_InfoMat_ADE_2D(Ddict, tau2, sigma2, n, nlevels, nraneffs, Constrmat1stDi
     return(FisherInfoMat)
 
 
-def get_covdldDkdsigma2_ADE_2D(k, sigma2, nlevels, nraneffs, Ddict):
+# ============================================================================
+#
+# The below function calculates the covariance between the derivative of the 
+# log likelihood with respect to vech(D_k) and the derivative with respect to 
+# \sigma^2.
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - k: The number of the first factor (k in the above notation).
+# - sigma2: The fixed effects variance (\sigma^2 in the above notation).
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#            `nlevels=[3,4]` would mean the first factor has 3 levels and 
+#            the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+# - Ddict: Dictionary version of the random effects variance-covariance
+#          matrix.
+#
+# ----------------------------------------------------------------------------
+#
+# It returns as outputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - covdldDdldsigma2: The covariance between the derivative of the log 
+#                     likelihood with respect to vech(D_k) and the 
+#                     derivative with respect to \sigma^2.
+# - ZtZmat: The sum over j of Z_{(k,j)}'Z_{(k,j)}. This only need be 
+#           calculated once so can be stored and re-entered for each
+#           iteration.
+#
+# ============================================================================
+def get_covdldDkdsigma2_ACE_2D(k, sigma2, nlevels, nraneffs, Ddict):
 
     # Get the indices for the factors 
     Ik = fac_indices2D(k, nlevels, nraneffs)
@@ -647,8 +840,47 @@ def get_covdldDkdsigma2_ADE_2D(k, sigma2, nlevels, nraneffs, Ddict):
     return(covdldDdldsigma2)
 
 
-
-def get_T_ADE_2D(L, X, paramVec, KinshipA, KinshipC, nlevels, nraneffs):
+# ============================================================================
+#
+# The below function calculates the approximate T statistic for a null
+# hypothesis test, H0:L\beta == 0 vs H1: L\beta != 0. The T statistic is given
+# by:
+#
+#     T = L\beta/s.e.(L\beta)
+#
+# Where s.e. represents standard error.
+#
+# ----------------------------------------------------------------------------
+#
+# This function takes in the following inputs:
+#
+# ----------------------------------------------------------------------------
+#
+# - L: A contrast vector.
+# - X: The fixed effects design matrix.
+# - paramVec: Final estimates of the parameter vector.
+# - KinshipA: A dictionary of kinship matrices for the addtive genetic effect,
+#             one corresponding to each family structure type in the model.
+# - KinshipC: A dictionary of kinship matrices for the common environmental
+#             effect, one corresponding to each family structure type in the
+#             model.
+# - nlevels: A vector containing the number of levels for each factor, e.g.
+#            `nlevels=[3,4]` would mean the first factor has 3 levels and
+#            the second factor has 4 levels.
+# - nraneffs: A vector containing the number of random effects for each
+#             factor, e.g. `nraneffs=[2,1]` would mean the first factor has
+#             random effects and the second factor has 1 random effect.
+#
+# ----------------------------------------------------------------------------
+#
+# And gives the following output:
+#
+# ----------------------------------------------------------------------------
+#
+# - T: T statistic.
+#
+# ============================================================================
+def get_T_ACE_2D(L, X, paramVec, KinshipA, KinshipC, nlevels, nraneffs):
 
     # Work out n and p
     n = X.shape[0]
@@ -672,7 +904,7 @@ def get_T_ADE_2D(L, X, paramVec, KinshipA, KinshipC, nlevels, nraneffs):
     LB = L @ beta
 
     # Work out se(T)
-    varLB = get_varLB_ADE_2D(L, X, Ddict, sigma2, nlevels, nraneffs)
+    varLB = get_varLB_ACE_2D(L, X, Ddict, sigma2, nlevels, nraneffs)
 
     # Work out T
     T = LB/np.sqrt(varLB)

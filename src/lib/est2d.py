@@ -8,7 +8,7 @@ from npMatrix2d import *
 # ============================================================================
 #
 # This file contains code for all Fisher Scoring based (univariate/"one-
-# voxel") parameter estimation methods developed during the course of the BLMM
+# model") parameter estimation methods developed during the course of the LMM
 # project. The methods given here are:
 #
 # - `FS`: Fisher Scoring
@@ -16,9 +16,6 @@ from npMatrix2d import *
 # - `SFS`: Simplified Fisher Scoring
 # - `pFS`: Pseudo-Simplified Fisher Scoring
 # - `cSFS`: Cholesky Simplified Fisher 
-# 
-# The PeLS algorithm currently is not included here, but instead can be found 
-# in the file "PeLS.py".
 #
 # ----------------------------------------------------------------------------
 #
@@ -255,9 +252,6 @@ def cSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
 
         # Update number of iterations
         nit = nit+1
-
-        if nit > 100:
-            break
 
         #---------------------------------------------------------------------------
         # Update beta

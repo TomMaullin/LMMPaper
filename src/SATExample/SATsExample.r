@@ -14,12 +14,13 @@ tchrfac <- as.factor(reducedat$tchrid)
 studfac <- as.factor(reducedat$studid)
 
 # Work out design
-x1 <- as.matrix(reducedat$year) # x0 intercept
+x1 <- as.matrix(reducedat$year) 
 
 # Run model
 m1 <- lmer(y ~ x1 + (1|tchrfac) + (1|studfac),REML=FALSE)
 devfun1 <- lmer(y ~ x1 + (1|tchrfac) + (1|studfac),REML=FALSE,devFunOnly = TRUE)
 
+# Time model
 tic('lmer time')
 tmp <- optimizeLmer(devfun1)
 t <- toc()

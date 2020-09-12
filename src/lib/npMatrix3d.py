@@ -2,7 +2,6 @@ import numpy as np
 import scipy.sparse
 from scipy import stats
 from npMatrix2d import faclev_indices2D, fac_indices2D, permOfIkKkI2D, dupMat2D
-from fileio import loadFile
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
@@ -13,10 +12,8 @@ from fileio import loadFile
 #   it really helped me having some form of the equations handy but I 
 #   understand this may not be as readable for developers new to the code. For
 #   nice latexed versions of the documentation here please see the google 
-#   colab notebooks here:
-#     - PeLS: https://colab.research.google.com/drive/1add6pX26d32WxfMUTXNz4wixYR1nOGi0
-#     - FS: https://colab.research.google.com/drive/12CzYZjpuLbENSFgRxLi9WZfF5oSwiy-e
-#     - GS: https://colab.research.google.com/drive/1sjfyDF_EhSZY60ziXoKGh4lfb737LFPD
+#   colab notebook here:
+#     - https://colab.research.google.com/drive/12CzYZjpuLbENSFgRxLi9WZfF5oSwiy-e
 # - Tom Maullin (12/11/2019)
 #   This file contains "3D" versions of all functions given in `2dtools.py`. 
 #   By 3D, I mean, where `2dtools.py` would take a matrix as input and do 
@@ -70,7 +67,7 @@ def mat2vec3D(matrix):
 # ============================================================================
 def mat2vech3D(matrix):
   
-  # Number of voxels, v
+  # Number of models, v
   v = matrix.shape[0]
   
   # Get lower triangular indices
@@ -99,7 +96,7 @@ def mat2vech3D(matrix):
 # ============================================================================
 def vech2mat3D(vech):
   
-  # Number of voxels
+  # Number of models
   v = vech.shape[0]
   
   # dimension of matrix
@@ -188,12 +185,12 @@ def ssr3D(YtX, YtY, XtX, beta):
 # ============================================================================
 #
 # This function takes in a dictionary, `Ddict`, in which entry `k` is a stack 
-# of the kth diagonal block for every voxel.
+# of the kth diagonal block for every model.
 #
 # ============================================================================
 def getDfromDict3D(Ddict, nraneffs, nlevels):
   
-  # Get number of voxels
+  # Get number of models
   v = Ddict[0].shape[0]
   
   # Work out indices (there is one block of D per level)
@@ -275,7 +272,7 @@ def initBeta3D(XtX, XtY):
 # ----------------------------------------------------------------------------
 #
 # - `ete`: The sum of square residuals (e'e in the above notation).
-# - `n`: The total number of observations (potentially spatially varying).
+# - `n`: The total number of observations (potentially varies across models).
 #
 # ----------------------------------------------------------------------------
 #
@@ -322,8 +319,8 @@ def initSigma23D(ete, n):
 #        notation)
 # - `lk`: The number of levels belonging to grouping factor k ($l_k$ in the
 #         above notation).
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `ZtZ`: Z transpose multiplied by Z (can  vary across models or can be
+#          fixed across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `Zte`: The Z matrix transposed and then multiplied by the OLS residuals
@@ -343,7 +340,7 @@ def initSigma23D(ete, n):
 # ============================================================================
 def initDk3D(k, ZtZ, Zte, sigma2, nlevels, nraneffs, dupMatTdict):
   
-  # Number of voxels v
+  # Number of models v
   v = Zte.shape[0]
 
   # Number of random factors
@@ -494,6 +491,7 @@ def makeDnnd3D(D):
 
 
 # ============================================================================
+#
 # This function returns the log likelihood of (\beta, \sigma^2, D) which is
 # given by the below equation:
 #
@@ -506,9 +504,9 @@ def makeDnnd3D(D):
 #
 # ----------------------------------------------------------------------------
 #
-# - `n`: The total number of observations (potentially spatially varying).
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `n`: The total number of observations (potentially varies across models).
+# - `ZtZ`: Z transpose multiplied by Z (can be vary across models or can be
+#          fixed across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `Zte`: The Z matrix transposed and then multiplied by the OLS residuals
@@ -545,7 +543,7 @@ def makeDnnd3D(D):
 # ============================================================================
 def llh3D(n, ZtZ, Zte, ete, sigma2, DinvIplusZtZD,D, Ddict, nlevels, nraneffs, reml=False, XtX=0, XtZ=0, ZtX=0):
 
-  # Number of random effects and number of voxels
+  # Number of random effects and number of models
   r = len(nlevels)
   v = ete.shape[0]
 
@@ -607,7 +605,6 @@ def llh3D(n, ZtZ, Zte, ete, sigma2, DinvIplusZtZD,D, Ddict, nlevels, nraneffs, r
   return(llh)
 
 
-
 # ============================================================================
 #
 # The below function calculates the matrix D(I+Z'ZD)^(-1). Whilst in general,
@@ -621,12 +618,12 @@ def llh3D(n, ZtZ, Zte, ete, sigma2, DinvIplusZtZD,D, Ddict, nlevels, nraneffs, r
 # ----------------------------------------------------------------------------
 #
 # - `Ddict`: a dictionary in which entry `k` is a 3D array of the kth diagonal 
-#            block of D for every voxel.
+#            block of D for every model.
 # - `D`: The matrix equivalent of Ddict. Note in the one random factor, one 
 #        random effect use case D can be set to none as the Ddict
 #        representation is used instead.
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#          fixed across). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `nlevels`: A vector containing the number of levels for each factor, e.g.
@@ -672,10 +669,8 @@ def get_DinvIplusZtZD3D(Ddict, D, ZtZ, nlevels, nraneffs):
     # DinvIplusZtZD = np.zeros((v,q,q))
     # np.einsum('ijj->ij', DinvIplusZtZD)[...] = DiaginvIplusZtZD
 
-  # TODO: Future development should handle these use cases as well:
+  # TODO: Future development should handle these use case as well:
   # ELIF: r=1, still block diagonal so can be spedup
-
-  # ELIF: q>1400: best to use the recursive inverse functions
 
   else:
 
@@ -738,6 +733,7 @@ def get_dldB3D(sigma2, Xte, XtZ, DinvIplusZtZD, Zte, nraneffs):
   return(deriv)
 
 # ============================================================================
+#
 # The below function calculates the derivative of the log likelihood with
 # respect to \sigma^2. This is given by the following equation:
 #
@@ -753,7 +749,7 @@ def get_dldB3D(sigma2, Xte, XtZ, DinvIplusZtZD, Zte, nraneffs):
 #
 # ----------------------------------------------------------------------------
 #
-# - `n`: The number of observations (potentially spatially varying).
+# - `n`: The number of observations (potentially varies across models).
 # - `ete`: The OLS residuals transposed and then multiplied by themselves
 #         (e'e=(Y-X\beta)'(Y-X\beta) in the above notation).
 # - `Zte`: The Z matrix transposed and then multiplied by the OLS residuals
@@ -810,6 +806,7 @@ def get_dldsigma23D(n, ete, Zte, sigma2, DinvIplusZtZD, nraneffs, reml=False, p=
 
 
 # ============================================================================
+#
 # The below function calculates the derivative of the log likelihood with
 # respect to D_k, the random effects covariance matrix for factor k. This is
 # given by the following equation:
@@ -842,8 +839,8 @@ def get_dldsigma23D(n, ete, Zte, sigma2, DinvIplusZtZD, nraneffs, reml=False, p=
 # - `nraneffs`: A vector containing the number of random effects for each
 #               factor, e.g. `nraneffs=[2,1]` would mean the first factor has
 #               random effects and the second factor has 1 random effect.
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#          fixed across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `Zte`: The Z matrix transposed and then multiplied by the OLS residuals
@@ -856,8 +853,7 @@ def get_dldsigma23D(n, ete, Zte, sigma2, DinvIplusZtZD, nraneffs, reml=False, p=
 # - `ZtZmat`: The sum over j of Z_{(k,j)}'Z_{(k,j)}. This only need be 
 #             calculated once so can be stored and re-entered for each
 #             iteration.
-# - `REML`: Backdoor option for restricted likelihood maximisation.
-#           Currrently not maintained.
+# - `REML`: Restricted likelihood maximisation.
 # - `ZtX`: The Z matrix transposed and then multiplied by X (Z'X in the
 #          above notation). Only needed for REML.
 # - `XtX`: The X matrix transposed and then multiplied by X (X'X in the
@@ -877,7 +873,7 @@ def get_dldsigma23D(n, ete, Zte, sigma2, DinvIplusZtZD, nraneffs, reml=False, p=
 # ============================================================================
 def get_dldDk3D(k, nlevels, nraneffs, ZtZ, Zte, sigma2, DinvIplusZtZD, ZtZmat=None, reml=False, ZtX=None, XtX=None):
 
-  # Number of voxels
+  # Number of models
   v = Zte.shape[0]
 
   # Number of random effects
@@ -970,73 +966,6 @@ def get_dldDk3D(k, nlevels, nraneffs, ZtZ, Zte, sigma2, DinvIplusZtZD, ZtZmat=No
 
 # ============================================================================
 #
-# Commented out below is an older version of the above code. This has been 
-# left here in case it has any use for future development.
-#
-# ============================================================================
-# def get_dldDk3D(k, nlevels, nraneffs, ZtZ, Zte, sigma2, DinvIplusZtZD,reml=False, ZtX=0, XtX=0):
-#
-#   # Number of voxels
-#   v = Zte.shape[0]
-#  
-#   # Initalize the derivative to zeros
-#   dldDk = np.zeros((v, nraneffs[k],nraneffs[k]))
-#  
-#   # For each level j we need to add a term
-#   for j in np.arange(nlevels[k]):
-#
-#     # Get the indices for the kth factor jth level
-#     Ikj = faclev_indices2D(k, j, nlevels, nraneffs)
-#    
-#     # Get (the kj^th columns of Z)^T multiplied by Z
-#     Z_kjtZ = ZtZ[:,Ikj,:]
-#     Z_kjte = Zte[:,Ikj,:]
-#    
-#     # Get the first term of the derivative
-#     Z_kjtVinve = Z_kjte - (Z_kjtZ @ DinvIplusZtZD @ Zte)
-#     firstterm = np.einsum('i,ijk->ijk',1/sigma2,forceSym3D(Z_kjtVinve @ Z_kjtVinve.transpose((0,2,1))))
-#    
-#     # Get (the kj^th columns of Z)^T multiplied by (the kj^th columns of Z)
-#     Z_kjtZ_kj = ZtZ[np.ix_(np.arange(ZtZ.shape[0]),Ikj,Ikj)]
-#     secondterm = forceSym3D(Z_kjtZ_kj) - forceSym3D(Z_kjtZ @ DinvIplusZtZD @ Z_kjtZ.transpose((0,2,1)))
-#    
-#     if j == 0:
-#      
-#       # Start a running sum over j
-#       dldDk = firstterm - secondterm
-#      
-#     else:
-#    
-#       # Add these to the running sum
-#       dldDk = dldDk + firstterm - secondterm
-#    
-#   if reml==True:
-#
-#     invXtinvVX = np.linalg.inv(XtX - ZtX.transpose((0,2,1)) @ DinvIplusZtZD @ ZtX)
-#
-#     # For each level j we need to add a term
-#     for j in np.arange(nlevels[k]):
-#
-#       # Get the indices for the kth factor jth level
-#       Ikj = faclev_indices2D(k, j, nlevels, nraneffs)
-#
-#       Z_kjtZ = ZtZ[:,Ikj,:]
-#       Z_kjtX = ZtX[:,Ikj,:]
-#
-#       Z_kjtinvVX = Z_kjtX - Z_kjtZ @ DinvIplusZtZD @ ZtX
-#
-#       dldDk = dldDk + 0.5*Z_kjtinvVX @ invXtinvVX @ Z_kjtinvVX.transpose((0,2,1))
-#
-#   # Halve the sum (the coefficient of a half was not included in the above)
-#   dldDk = forceSym3D(dldDk/2)
-#
-#   # Store it in the dictionary
-#   return(dldDk)
-# ============================================================================
-
-
-# ============================================================================
-#
 # The below function calculates the covariance between the derivative of the 
 # log likelihood with respect to \beta, given by the below formula:
 #
@@ -1047,15 +976,15 @@ def get_dldDk3D(k, nlevels, nraneffs, ZtZ, Zte, sigma2, DinvIplusZtZD, ZtZmat=No
 # ----------------------------------------------------------------------------
 #
 # This function takes the following inputs:
-#
+# 
 # ----------------------------------------------------------------------------
 #
-# - `XtZ`: X transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). 
-# - `XtX`: X transpose multiplied by X (can be spatially varying or non
-#          -spatially varying). 
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `XtZ`: X transpose multiplied by Z (can vary across models or can be fixed
+#          across models). 
+# - `XtX`: X transpose multiplied by X (can vary across models or can be fixed
+#          across models). 
+# - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be fixed
+#          across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `DinvIplusZtZD`: The product D(I+Z'ZD)^(-1). If we are looking at a 
@@ -1115,8 +1044,8 @@ def get_covdldbeta3D(XtZ, XtX, ZtZ, DinvIplusZtZD, sigma2, nraneffs):
 # - `nraneffs`: A vector containing the number of random effects for each
 #               factor, e.g. `nraneffs=[2,1]` would mean the first factor has
 #               random effects and the second factor has 1 random effect.
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#          fixed across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `DinvIplusZtZD`: The product D(I+Z'ZD)^(-1). If we are looking at a 
@@ -1148,7 +1077,7 @@ def get_covdldbeta3D(XtZ, XtX, ZtZ, DinvIplusZtZD, sigma2, nraneffs):
 # ============================================================================
 def get_covdldDkdsigma23D(k, sigma2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdict, vec=False, ZtZmat=None):
 
-  # Number of voxels
+  # Number of models
   v = DinvIplusZtZD.shape[0]
 
   # Number of random factors r
@@ -1215,41 +1144,6 @@ def get_covdldDkdsigma23D(k, sigma2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupM
 
 # ============================================================================
 #
-# Commented out below is an older version of the above code. This has been 
-# left here in case it has any use for future development.
-#
-# ============================================================================
-# def get_covdldDkdsigma23D(k, sigma2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdict, vec=False):
-#  
-#   # Number of voxels
-#   v = DinvIplusZtZD.shape[0]
-#  
-#   # Sum of R_(k, j) over j
-#   RkSum = np.zeros((v,nraneffs[k],nraneffs[k]))
-#
-#   for j in np.arange(nlevels[k]):
-#
-#     # Get the indices for the kth factor jth level
-#     Ikj = faclev_indices2D(k, j, nlevels, nraneffs)
-#
-#     # Work out R_(k, j)
-#     Rkj = ZtZ[np.ix_(np.arange(ZtZ.shape[0]),Ikj,Ikj)] - forceSym3D(ZtZ[:,Ikj,:] @ DinvIplusZtZD @ ZtZ[:,:,Ikj])
-#    
-#     # Add together
-#     RkSum = RkSum + Rkj
-#
-#   # Multiply by duplication matrices and 
-#   if not vec:
-#     covdldDdldsigma2 = np.einsum('i,ijk->ijk', 1/(2*sigma2), dupMatTdict[k] @ mat2vec3D(RkSum))
-#   else:
-#     covdldDdldsigma2 = np.einsum('i,ijk->ijk', 1/(2*sigma2), mat2vec3D(RkSum))
-#  
-#   return(covdldDdldsigma2)
-# ============================================================================
-
-
-# ============================================================================
-#
 # The below function calculates the covariance between the derivative of the 
 # log likelihood with respect to vech(D_(k1)) and the derivative with respect 
 # to vech(D_(k2)).
@@ -1275,8 +1169,8 @@ def get_covdldDkdsigma23D(k, sigma2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupM
 # - `nraneffs`: A vector containing the number of random effects for each
 #               factor, e.g. `nraneffs=[2,1]` would mean the first factor has
 #               random effects and the second factor has 1 random effect.
-# - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#          -spatially varying). If we are looking at a one random factor one
+# - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#          fixed across models). If we are looking at a one random factor one
 #          random effect design the variable ZtZ only holds the diagonal 
 #          elements of the matrix Z'Z.
 # - `DinvIplusZtZD`: The product D(I+Z'ZD)^(-1). If we are looking at a 
@@ -1314,7 +1208,7 @@ def get_covdldDk1Dk23D(k1, k2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdic
   # Work out number of random factors
   r = len(nlevels)
 
-  # Work out number of voxels
+  # Work out number of models
   v = DinvIplusZtZD.shape[0]
 
   # Work out R_(k1,k2) (in the one factor, one random effect setting we can speed this up a lot)
@@ -1358,51 +1252,8 @@ def get_covdldDk1Dk23D(k1, k2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdic
 
 # ============================================================================
 #
-# Commented out below is an older version of the above code. This has been 
-# left here in case it has any use for future development.
-#
-# ============================================================================
-# def get_covdldDk1Dk23D(k1, k2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdict, vec=False):
-#  
-#   # Sum of R_(k1, k2, i, j) kron R_(k1, k2, i, j) over i and j 
-#   for i in np.arange(nlevels[k1]):
-#
-#     for j in np.arange(nlevels[k2]):
-#      
-#       # Get the indices for the k1th factor jth level
-#       Ik1i = faclev_indices2D(k1, i, nlevels, nraneffs)
-#       Ik2j = faclev_indices2D(k2, j, nlevels, nraneffs)
-#      
-#       # Work out R_(k1, k2, i, j)
-#       Rk1k2ij = ZtZ[np.ix_(np.arange(ZtZ.shape[0]),Ik1i,Ik2j)] - (ZtZ[:,Ik1i,:] @ DinvIplusZtZD @ ZtZ[:,:,Ik2j])
-#     
-#       # Work out Rk1k2ij kron Rk1k2ij
-#       RkRt = kron3D(Rk1k2ij,Rk1k2ij)
-#      
-#       # Add together
-#       if (i == 0) and (j == 0):
-#      
-#         RkRtSum = RkRt
-#      
-#       else:
-#        
-#         RkRtSum = RkRtSum + RkRt
-#    
-#   # Multiply by duplication matrices and save
-#   if not vec:
-#     covdldDk1dldk2 = 1/2 * dupMatTdict[k1] @ RkRtSum @ dupMatTdict[k2].transpose()
-#   else:
-#     covdldDk1dldk2 = 1/2 * RkRtSum
-#
-#   # Return the result
-#   return(covdldDk1dldk2)
-# ============================================================================
-
-
-# ============================================================================
-#
 # This function is used to generate indices for converged and non-converged
-# voxels, before, after and during the current iteration of an algorithm.
+# models, before, after and during the current iteration of an algorithm.
 #
 # ----------------------------------------------------------------------------
 #
@@ -1410,11 +1261,11 @@ def get_covdldDk1Dk23D(k1, k2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdic
 #
 # ----------------------------------------------------------------------------
 #
-# - `convergedBeforeIt`: Boolean array of all voxels which had converged
+# - `convergedBeforeIt`: Boolean array of all models which had converged
 #                        before the iteration, relative to the full list of 
-#                        voxels. 
-# - `convergedDuringIt`: Boolean array of all voxels which converged during
-#                        the iteration, relative to the list of voxels
+#                        models. 
+# - `convergedDuringIt`: Boolean array of all models which converged during
+#                        the iteration, relative to the list of models
 #                        considered during the iteration.
 #
 # ----------------------------------------------------------------------------
@@ -1423,33 +1274,28 @@ def get_covdldDk1Dk23D(k1, k2, nlevels, nraneffs, ZtZ, DinvIplusZtZD, dupMatTdic
 #
 # ----------------------------------------------------------------------------
 #
-# - `indices_ConAfterIt`: The indices of all voxels converged after the 
-#                         iteration, relative to the full list of voxels. 
-# - `indices_notConAfterIt`: The indices of all voxels not converged after the
-#                            iteration, relative to the full list of voxels.
-# - `indices_conDuringIt`: The indices of all voxels which converged during 
-#                          the iteration, relative to the full list of voxels.
-# - `local_converged`: The indices of the voxels which converged during the
-#                      iteration, relative to the list of voxels considered
+# - `indices_ConAfterIt`: The indices of all models converged after the 
+#                         iteration, relative to the full list of models. 
+# - `indices_notConAfterIt`: The indices of all models not converged after the
+#                            iteration, relative to the full list of models.
+# - `indices_conDuringIt`: The indices of all models which converged during 
+#                          the iteration, relative to the full list of models.
+# - `local_converged`: The indices of the models which converged during the
+#                      iteration, relative to the list of models considered
 #                      during the iteration.
-# - `local_notconverged`:The indices of the voxels did not converge during the
+# - `local_notconverged`:The indices of the models did not converge during the
 #                        iteration, and were not converged prior to the 
-#                        iteration, relative to the list of voxels considered
+#                        iteration, relative to the list of models considered
 #                        during the iteration.
-#
-# ----------------------------------------------------------------------------
-#
-# Developer note: If this documentation seems confusing, see the example in 
-# `unitTests3D.py`. It might help shed some light on what's going on here.
 #
 # ============================================================================
 def getConvergedIndices(convergedBeforeIt, convergedDuringIt):
   
   # ==========================================================================
-  # Global indices (i.e. relative to whole image)
+  # Global indices (i.e. relative to whole set of models)
   # --------------------------------------------------------------------------
   
-  # Numbers 1 to number of voxels
+  # Numbers 1 to number of models
   indices = np.arange(len(convergedBeforeIt))
   
   # Indices of those which weren't converged before the iteration
@@ -1465,7 +1311,7 @@ def getConvergedIndices(convergedBeforeIt, convergedDuringIt):
   indices_conDuringIt = np.setdiff1d(indices_notConBeforeIt, indices_notConAfterIt)
   
   # ==========================================================================
-  # Local indices (i.e. relative to current voxels)
+  # Local indices (i.e. relative to current models)
   # --------------------------------------------------------------------------
   local_converged = np.arange(len(convergedDuringIt))[convergedDuringIt==1]
   local_notconverged = np.arange(len(convergedDuringIt))[convergedDuringIt==0]
@@ -1512,7 +1358,7 @@ def getConvergedIndices(convergedBeforeIt, convergedDuringIt):
 def block2stacked3D(A, pA):
 
   # Work out shape of A
-  v = A.shape[0] # (Number of voxels)
+  v = A.shape[0] # (Number of models)
   m1 = A.shape[1]
   m2 = A.shape[2]
 
@@ -1613,8 +1459,8 @@ def mat2vecb3D(mat,p):
 #        dimension (n1' by n2) the pB=[n1', n2].
 #
 # * v1 and v2 may differ if and only if one of them is set to 1 (i.e. we allow
-#   for v1 and v2 to differ in the case that one of A or B is spatially
-#   varying whilst the other is not).
+#   for v1 and v2 to differ in the case that one of A or B varies across models
+#   whilst the other does not).
 #
 # ----------------------------------------------------------------------------
 #
@@ -1633,8 +1479,8 @@ def mat2vecb3D(mat,p):
 # ============================================================================
 def sumAijBijt3D(A, B, pA, pB):
   
-  # Number of voxels (we allow v1 and v2 to be different to allow for the 
-  # case that one of A and B is not spatially varying and hence had v=1)
+  # Number of models (we allow v1 and v2 to be different to allow for the 
+  # case that one of A and B does not vary across models and hence had v=1)
   v1 = A.shape[0]
   v2 = B.shape[0]
 
@@ -1695,7 +1541,7 @@ def sumAijBijt3D(A, B, pA, pB):
 # ============================================================================
 def sumTTt_1fac1ran3D(ZtZ, DinvIplusZtZD, l0, q0):
 
-  # Number of voxels, v
+  # Number of models, v
   v = DinvIplusZtZD.shape[0]
 
   # Work out the diagonal values of the matrix product Z'ZD(I+Z'ZD)^(-1)Z'Z
@@ -1754,7 +1600,7 @@ def sumAijKronBij3D(A, B, p, perm=None):
   n1 = p[0]
   n2 = p[1]
 
-  # Number of voxels
+  # Number of models
   v = A.shape[0]
 
   # This matrix only needs be calculated once
@@ -1794,8 +1640,7 @@ def sumAijKronBij3D(A, B, p, perm=None):
 # - `YtY`: Y transpose multiplied by Y (Y'Y in the above notation).
 # - `XtX`: X transpose multiplied by X (X'X in the above notation).
 # - `beta`: An estimate of the parameter vector (\beta in the above notation).
-# - `n`: The number of observations/input niftis (potentially spatially
-#        varying)
+# - `n`: The number of observations (potentially varies across models)
 # - `p`: The number of fixed effects parameters.
 #
 # ----------------------------------------------------------------------------
@@ -1951,8 +1796,8 @@ def get_varLB3D(L, XtX, XtZ, DinvIplusZtZD, sigma2, nraneffs):
 #
 # - `L`: A contrast matrix.
 # - `F`: A matrix of F statistics.
-# - `df`: The denominator degrees of freedom of the F statistic (can be 
-#         spatially varying).
+# - `df`: The denominator degrees of freedom of the F statistic (can vary
+#         across models).
 #
 # ----------------------------------------------------------------------------
 #
@@ -2095,7 +1940,7 @@ def get_F3D(L, XtX, XtZ, DinvIplusZtZD, betahat, sigma2, nraneffs):
 # ----------------------------------------------------------------------------
 #
 # - `T`: A matrix of T statistics.
-# - `df`: The degrees of freedom of the T statistic (can be spatially varying).
+# - `df`: The degrees of freedom of the T statistic (can vary across models).
 # - `minlog`: A value to replace `-inf` p-values with.
 #
 # ----------------------------------------------------------------------------
@@ -2135,8 +1980,8 @@ def T2P3D(T,df,minlog):
 #
 # - `F`: A matrix of F statistics.
 # - `L`: A contrast matrix.
-# - `df_denom`: The denominator degrees of freedom of the F statistic (can be 
-#               spatially varying).
+# - `df_denom`: The denominator degrees of freedom of the F statistic (can 
+#               vary across models).
 # - `minlog`: A value to replace `-inf` p-values with.
 #
 # ----------------------------------------------------------------------------
@@ -2189,8 +2034,7 @@ def F2P3D(F, L, df_denom, minlog):
 #          we are looking at a one random factor one random effect design 
 #          the variable ZtZ only holds the diagonal elements of the matrix 
 #          Z'Z.
-# - `n`: The number of observations/input niftis (potentially spatially
-#        varying)
+# - `n`: The number of observations (potentially  varies across models)
 # - `nlevels`: A vector containing the number of levels for each factor, e.g.
 #              `nlevels=[3,4]` would mean the first factor has 3 levels and
 #              the second factor has 4 levels.
@@ -2208,7 +2052,8 @@ def F2P3D(F, L, df_denom, minlog):
 #
 # ----------------------------------------------------------------------------
 #
-# - `df`: The spatially varying Sattherthwaithe degrees of freedom estimate.
+# - `df`: The Sattherthwaithe degrees of freedom estimate (varies across
+#         models).
 #
 # ============================================================================
 def get_swdf_F3D(L, sigma2, XtX, XtZ, ZtX, ZtZ, DinvIplusZtZD, n, nlevels, nraneffs): 
@@ -2276,8 +2121,7 @@ def get_swdf_F3D(L, sigma2, XtX, XtZ, ZtX, ZtZ, DinvIplusZtZD, n, nlevels, nrane
 #          we are looking at a one random factor one random effect design 
 #          the variable ZtZ only holds the diagonal elements of the matrix 
 #          Z'Z.
-# - `n`: The number of observations/input niftis (potentially spatially
-#        varying)
+# - `n`: The number of observations (potentially varies across models)
 # - `nlevels`: A vector containing the number of levels for each factor, e.g.
 #              `nlevels=[3,4]` would mean the first factor has 3 levels and
 #              the second factor has 4 levels.
@@ -2295,7 +2139,8 @@ def get_swdf_F3D(L, sigma2, XtX, XtZ, ZtX, ZtZ, DinvIplusZtZD, n, nlevels, nrane
 #
 # ----------------------------------------------------------------------------
 #
-# - `df`: The spatially varying Sattherthwaithe degrees of freedom estimate.
+# - `df`: The Sattherthwaithe degrees of freedom estimate (which varies across
+#         models).
 #
 # ============================================================================
 def get_swdf_T3D(L, sigma2, XtX, XtZ, ZtX, ZtZ, DinvIplusZtZD, n, nlevels, nraneffs): 
@@ -2374,7 +2219,7 @@ def get_dS23D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2):
   # ZtX
   ZtX = XtZ.transpose(0,2,1)
 
-  # Number of voxels
+  # Number of models
   v = DinvIplusZtZD.shape[0]
 
   # Calculate X'V^{-1}X=X'(I+ZDZ')^{-1}X=X'X-X'Z(I+DZ'Z)^{-1}DZ'X. In the
@@ -2478,7 +2323,7 @@ def get_dS23D(nraneffs, nlevels, L, XtX, XtZ, ZtZ, DinvIplusZtZD, sigma2):
 #                    DinvIplusZtZD will only hold the diagonal elements of
 #                    D(I+Z'ZD)^(-1)
 # - `sigma2`: The fixed effects variance estimate.
-# - `n`: The total number of observations (potentially spatially varying).
+# - `n`: The total number of observations (potentially varies across models).
 # - `nlevels`: A vector containing the number of levels for each factor, e.g.
 #              `nlevels=[3,4]` would mean the first factor has 3 levels and
 #              the second factor has 4 levels.
@@ -2504,7 +2349,7 @@ def get_InfoMat3D(DinvIplusZtZD, sigma2, n, nlevels, nraneffs, ZtZ):
     # Number of random effects, q
     q = np.sum(np.dot(nraneffs,nlevels))
 
-    # Number of voxels 
+    # Number of models 
     v = sigma2.shape[0]
 
     # Duplication matrices

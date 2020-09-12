@@ -6,9 +6,9 @@ from npMatrix2d import *
 
 # ============================================================================
 #
-# This file contains all parameter estimation methods used by BLMM for sets of 
-# multiple voxels (as oppose to `est2d.py`, which is written for parameter 
-# estimation of only one voxel). The methods* given here are:
+# This file contains all parameter estimation methods used by the LMM code for
+# estimating multiple models (as oppose to `est2d.py`, which is written for
+# parameter estimation of only one model). The methods* given here are:
 #
 # - `FS`: Fisher Scoring
 # - `pFS`: Pseudo-Fisher Scoring
@@ -17,7 +17,11 @@ from npMatrix2d import *
 #
 # *Note: cSFS (cholesky Simplified Fisher Scoring), which is available in 
 # `est2d.py` is not available here as it was slower than the above and 
-# including it would have added little to the code.
+# including it wasn't of much practical use.
+#
+# This code is only employed in this repository to speed up the computation of
+# the Satterthwaithe degrees of freedom baseline truth simulations. All other
+# code and reported performance is based on the code from the `est2d.py` file.
 #
 # ----------------------------------------------------------------------------
 #
@@ -28,8 +32,8 @@ from npMatrix2d import *
 
 # ============================================================================
 # 
-# This below function performs Fisher Scoring for the Mass Univariate Linear
-# Mixed Model. It is based on the update rule:
+# This below function performs Fisher Scoring for the multiple Linear
+# Mixed Models. It is based on the update rule:
 #
 #     \theta_h = \theta_h + lam*I(\theta_h)^(-1) (dl/d\theta_h)
 #
@@ -44,19 +48,19 @@ from npMatrix2d import *
 #
 # ----------------------------------------------------------------------------
 #
-#  - `XtX`: X transpose multiplied by X (can be spatially varying or non
-#           -spatially varying). 
-#  - `XtY`: X transpose multiplied by Y (spatially varying).
-#  - `XtZ`: X transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying).
-#  - `YtX`: Y transpose multiplied by X (spatially varying).
-#  - `YtY`: Y transpose multiplied by Y (spatially varying).
-#  - `YtZ`: Y transpose multiplied by Z (spatially varying).
-#  - `ZtX`: Z transpose multiplied by X (can be spatially varying or non
-#           -spatially varying).
-#  - `ZtY`: Z transpose multiplied by Y (spatially varying).
-#  - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying). If we are looking at a random intercept
+#  - `XtX`: X transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `XtY`: X transpose multiplied by Y (varies across models).
+#  - `XtZ`: X transpose multiplied by Z (can vary across models or can be
+#           fixed across models). 
+#  - `YtX`: Y transpose multiplied by X (varies across models).
+#  - `YtY`: Y transpose multiplied by Y (varies across models).
+#  - `YtZ`: Y transpose multiplied by Z (varies across models).
+#  - `ZtX`: Z transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `ZtY`: Z transpose multiplied by Y (varies across models).
+#  - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#           fixed across models). If we are looking at a random intercept
 #           design the variable ZtZ only holds the diagonal elements of the
 #           matrix Z'Z.
 # - `nlevels`: A vector containing the number of levels for each factor, 
@@ -67,8 +71,8 @@ from npMatrix2d import *
 #              random effects and the second factor has 1 random effect.
 #  - `tol`: A scalar tolerance value. Iteration stops once successive 
 #           log-likelihood values no longer exceed `tol`.
-#  - `n`: The number of observations (can be spatially varying or non
-#         -spatially varying). 
+#  - `n`: The number of observations (can vary across models or can be
+#         fixed across models). 
 #  - `reml`: Restricted maximum likelihood estimation (currently not implemented)
 #            Default: False. 
 #
@@ -79,12 +83,11 @@ from npMatrix2d import *
 # ----------------------------------------------------------------------------
 #
 #  - `savedparams`: \theta_h in the previous notation; the vector (beta, 
-#                   sigma2, vech(D1),...vech(Dr)) for every voxel.
+#                   sigma2, vech(D1),...vech(Dr)) for every model.
 #
 # ============================================================================
 def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, reml=False):
     
-
     # ------------------------------------------------------------------------------
     # Useful scalars
     # ------------------------------------------------------------------------------
@@ -98,7 +101,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
     # Number of fixed effects, p
     p = XtX.shape[1]
 
-    # Number of voxels, v
+    # Number of models, v
     v = XtY.shape[0]
     
     # ------------------------------------------------------------------------------
@@ -143,7 +146,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
     # ------------------------------------------------------------------------------
     # Index variables
     # ------------------------------------------------------------------------------
-    # Work out the total number of paramateres
+    # Work out the total number of parameters
     tnp = np.int32(p + 1 + np.sum(nraneffs*(nraneffs+1)/2))
 
     # Indices for submatrics corresponding to Dks
@@ -184,9 +187,9 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
             permdict[str(k1)+str(k2)] = None
 
     # ------------------------------------------------------------------------------
-    # Converged voxels and parameter saving
+    # Converged models and parameter saving
     # ------------------------------------------------------------------------------
-    # Vector checking if all voxels converged
+    # Vector checking if all models converged
     converged_global = np.zeros(v)
     
     # Vector of saved parameters which have converged
@@ -206,7 +209,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
         # Change current likelihood to previous
         llhprev = llhcurr
         
-        # Work out how many voxels are left
+        # Work out how many models are left
         v_iter = XtY.shape[0]
         
         # --------------------------------------------------------------------------
@@ -342,13 +345,13 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
         lam[llhprev>llhcurr] = lam[llhprev>llhcurr]/2
                 
         # --------------------------------------------------------------------------
-        # Work out which voxels converged and reduce the set of voxels we look at
+        # Work out which models converged and reduce the set of models we look at
         # next iteration
         # --------------------------------------------------------------------------
-        # Get voxel indices in various formats
+        # Get model indices in various formats
         indices_ConAfterIt, indices_notConAfterIt, indices_ConDuringIt, localconverged, localnotconverged = getConvergedIndices(converged_global, (np.abs(llhprev-llhcurr)<tol))
 
-        # Update the record of which voxels have converged.
+        # Update the record of which models have converged.
         converged_global[indices_ConDuringIt] = 1
 
         # Save parameters from this run
@@ -372,7 +375,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
         else:
             DinvIplusZtZD = DinvIplusZtZD[localnotconverged, :, :]
 
-        # Spatially varying design
+        # Design varies across models
         if XtX.shape[0] > 1:
 
             XtX = XtX[localnotconverged, :, :]
@@ -396,7 +399,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
 
         # Update n
         if hasattr(n, "ndim"):
-            # Check if n varies with voxel
+            # Check if n varies with model
             if n.shape[0] > 1:
                 if n.ndim == 1:
                     n = n[localnotconverged]
@@ -440,8 +443,8 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
 
 # ============================================================================
 # 
-# This below function performs pesudo Fisher Scoring for the Mass Univariate
-# Linear Mixed Model. It is based on the update rule:
+# This below function performs pesudo Fisher Scoring for multiple Linear Mixed
+# Models. It is based on the update rule:
 #
 #     \theta_f = \theta_f + lam*I(\theta_f)^+ (dl/d\theta_f)
 #
@@ -462,19 +465,19 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
 #
 # ----------------------------------------------------------------------------
 #
-#  - `XtX`: X transpose multiplied by X (can be spatially varying or non
-#           -spatially varying). 
-#  - `XtY`: X transpose multiplied by Y (spatially varying).
-#  - `XtZ`: X transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying).
-#  - `YtX`: Y transpose multiplied by X (spatially varying).
-#  - `YtY`: Y transpose multiplied by Y (spatially varying).
-#  - `YtZ`: Y transpose multiplied by Z (spatially varying).
-#  - `ZtX`: Z transpose multiplied by X (can be spatially varying or non
-#           -spatially varying).
-#  - `ZtY`: Z transpose multiplied by Y (spatially varying).
-#  - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying). If we are looking at a random intercept
+#  - `XtX`: X transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `XtY`: X transpose multiplied by Y (varies across models).
+#  - `XtZ`: X transpose multiplied by Z (can vary across models or can be
+#           fixed across models). 
+#  - `YtX`: Y transpose multiplied by X (varies across models).
+#  - `YtY`: Y transpose multiplied by Y (varies across models).
+#  - `YtZ`: Y transpose multiplied by Z (varies across models).
+#  - `ZtX`: Z transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `ZtY`: Z transpose multiplied by Y (varies across models).
+#  - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#           fixed across models). If we are looking at a random intercept
 #           design the variable ZtZ only holds the diagonal elements of the
 #           matrix Z'Z.
 # - `nlevels`: A vector containing the number of levels for each factor, 
@@ -485,8 +488,8 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
 #              random effects and the second factor has 1 random effect.
 #  - `tol`: A scalar tolerance value. Iteration stops once successive 
 #           log-likelihood values no longer exceed `tol`.
-#  - `n`: The number of observations (can be spatially varying or non
-#         -spatially varying). 
+#  - `n`: The number of observations (can vary across models or can be
+#         fixed across models). 
 #  - `reml`: Restricted maximum likelihood estimation (currently not implemented)
 #            Default: False. 
 #
@@ -497,7 +500,7 @@ def FS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, 
 # ----------------------------------------------------------------------------
 #
 #  - `savedparams`: \theta_h in the previous notation; the vector (beta, 
-#                   sigma2, vech(D1),...vech(Dr)) for every voxel.
+#                   sigma2, vech(D1),...vech(Dr)) for every model.
 #
 # ============================================================================
 def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, reml=False):
@@ -515,7 +518,7 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
     # Number of fixed effects, p
     p = XtX.shape[1]
 
-    # Number of voxels, v
+    # Number of models, v
     v = XtY.shape[0]
     
     # ------------------------------------------------------------------------------
@@ -601,9 +604,9 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
             permdict[str(k1)+str(k2)] = None
 
     # ------------------------------------------------------------------------------
-    # Converged voxels and parameter saving
+    # Converged models and parameter saving
     # ------------------------------------------------------------------------------
-    # Vector checking if all voxels converged
+    # Vector checking if all models converged
     converged_global = np.zeros(v)
     
     # Vector of saved parameters which have converged
@@ -621,12 +624,12 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         nit = nit + 1
             
         # --------------------------------------------------------------------------
-        # Update loglikelihood and number of voxels
+        # Update loglikelihood and number of models
         # --------------------------------------------------------------------------
         # Change current likelihood to previous
         llhprev = llhcurr
         
-        # Work out how many voxels are left
+        # Work out how many models are left
         v_iter = XtY.shape[0]
         
         # --------------------------------------------------------------------------
@@ -758,11 +761,11 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         lam[llhprev>llhcurr] = lam[llhprev>llhcurr]/2
                 
         # --------------------------------------------------------------------------
-        # Work out which voxels converged
+        # Work out which models converged
         # --------------------------------------------------------------------------
-        # Get indices of converged voxels
+        # Get indices of converged models
         indices_ConAfterIt, indices_notConAfterIt, indices_ConDuringIt, localconverged, localnotconverged = getConvergedIndices(converged_global, (np.abs(llhprev-llhcurr)<tol))
-        # Update record of converged voxels
+        # Update record of converged models
         converged_global[indices_ConDuringIt] = 1
 
         # --------------------------------------------------------------------------
@@ -788,7 +791,7 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         else:
             DinvIplusZtZD = DinvIplusZtZD[localnotconverged, :, :]
 
-        # Spatially varying design
+        # Design varies across models
         if XtX.shape[0] > 1:
 
             XtX = XtX[localnotconverged, :, :]
@@ -812,7 +815,7 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 
         # Update n
         if hasattr(n, "ndim"):
-            # Check if n varies with voxel
+            # Check if n varies with model
             if n.shape[0] > 1:
                 if n.ndim == 1:
                     n = n[localnotconverged]
@@ -853,8 +856,8 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 
 # ============================================================================
 # 
-# This below function performs Simplified Fisher Scoring for the Mass
-# Univariate Linear Mixed Model. It is based on the update rules:
+# This below function performs Simplified Fisher Scoring for multiple Linear
+# Mixed Models. It is based on the update rules:
 #
 #                    beta = (X'V^(-1)X)^(-1)(X'V^(-1)Y)
 #
@@ -880,19 +883,19 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 #
 # ----------------------------------------------------------------------------
 #
-#  - `XtX`: X transpose multiplied by X (can be spatially varying or non
-#           -spatially varying). 
-#  - `XtY`: X transpose multiplied by Y (spatially varying).
-#  - `XtZ`: X transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying).
-#  - `YtX`: Y transpose multiplied by X (spatially varying).
-#  - `YtY`: Y transpose multiplied by Y (spatially varying).
-#  - `YtZ`: Y transpose multiplied by Z (spatially varying).
-#  - `ZtX`: Z transpose multiplied by X (can be spatially varying or non
-#           -spatially varying).
-#  - `ZtY`: Z transpose multiplied by Y (spatially varying).
-#  - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying). If we are looking at a random intercept
+#  - `XtX`: X transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `XtY`: X transpose multiplied by Y (varies across models).
+#  - `XtZ`: X transpose multiplied by Z (can vary across models or can be
+#           fixed across models). 
+#  - `YtX`: Y transpose multiplied by X (varies across models).
+#  - `YtY`: Y transpose multiplied by Y (varies across models).
+#  - `YtZ`: Y transpose multiplied by Z (varies across models).
+#  - `ZtX`: Z transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `ZtY`: Z transpose multiplied by Y (varies across models).
+#  - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#           fixed across models). If we are looking at a random intercept
 #           design the variable ZtZ only holds the diagonal elements of the
 #           matrix Z'Z.
 # - `nlevels`: A vector containing the number of levels for each factor, 
@@ -903,8 +906,8 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 #              random effects and the second factor has 1 random effect.
 #  - `tol`: A scalar tolerance value. Iteration stops once successive 
 #           log-likelihood values no longer exceed `tol`.
-#  - `n`: The number of observations (can be spatially varying or non
-#         -spatially varying). 
+#  - `n`: The number of observations (can vary across models or can be
+#         fixed across models). 
 #  - `reml`: Restricted maximum likelihood estimation (currently not implemented)
 #            Default: False. 
 #
@@ -915,7 +918,7 @@ def pFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 # ----------------------------------------------------------------------------
 #
 #  - `savedparams`: \theta_h in the previous notation; the vector (beta, 
-#                   sigma2, vech(D1),...vech(Dr)) for every voxel.
+#                   sigma2, vech(D1),...vech(Dr)) for every model.
 #
 # ============================================================================
 def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n, reml=False):
@@ -933,7 +936,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
     # Number of fixed effects, p
     p = XtX.shape[1]
 
-    # Number of voxels, v
+    # Number of models, v
     v = XtY.shape[0]
     
     # ------------------------------------------------------------------------------
@@ -985,7 +988,6 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
     FishIndsDk = np.int32(np.cumsum(nraneffs*(nraneffs+1)/2) + p + 1)
     FishIndsDk = np.insert(FishIndsDk,0,p+1)
 
-
     # ------------------------------------------------------------------------------
     # Obtain D(I+Z'ZD)^(-1)
     # ------------------------------------------------------------------------------
@@ -1019,9 +1021,9 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         permdict[str(k)] = None
 
     # ------------------------------------------------------------------------------
-    # Converged voxels and parameter saving
+    # Converged models and parameter saving
     # ------------------------------------------------------------------------------
-    # Vector checking if all voxels converged
+    # Vector checking if all models converged
     converged_global = np.zeros(v)
     
     # Vector of saved parameters which have converged
@@ -1055,12 +1057,12 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         nit = nit + 1
             
         # --------------------------------------------------------------------------
-        # Update loglikelihood and number of voxels
+        # Update loglikelihood and number of models
         # --------------------------------------------------------------------------
         # Change current likelihood to previous
         llhprev = llhcurr
         
-        # Work out how many voxels are left
+        # Work out how many models are left
         v_iter = XtY.shape[0]
         
         # --------------------------------------------------------------------------
@@ -1174,13 +1176,13 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         lam[llhprev>llhcurr] = lam[llhprev>llhcurr]/2
         
         # --------------------------------------------------------------------------
-        # Work out which voxels converged
+        # Work out which models converged
         # --------------------------------------------------------------------------
 
-        # Get indices of converged voxels
+        # Get indices of converged models
         indices_ConAfterIt, indices_notConAfterIt, indices_ConDuringIt, localconverged, localnotconverged = getConvergedIndices(converged_global, (np.abs(llhprev-llhcurr)<tol))
 
-        # Record which voxels converged this iteration
+        # Record which models converged this iteration
         converged_global[indices_ConDuringIt] = 1
 
         # --------------------------------------------------------------------------
@@ -1194,7 +1196,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
             # Get vech form of D_k
             vech_Dk = mat2vech3D(Ddict[k][localconverged,:,:])
             
-            # Make sure it has correct shape (i.e. shape (num voxels converged, num
+            # Make sure it has correct shape (i.e. shape (num models converged, num
             # random effectss for factor k squared, 1))
             vech_Dk = vech_Dk.reshape(len(localconverged),nraneffs[k]*(nraneffs[k]+1)//2,1)
             savedparams[indices_ConDuringIt,FishIndsDk[k]:FishIndsDk[k+1],:]=vech_Dk
@@ -1209,6 +1211,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         YtZ = YtZ[localnotconverged, :, :]
         Zte = Zte[localnotconverged, :, :]
         ete = ete[localnotconverged, :, :]
+
         # In the one factor, one random effect case we only have the diagonal 
         # D(I+Z'Z)^(-1) elements because D(I+Z'Z)^(-1) is diagonal in this use
         # case.
@@ -1217,7 +1220,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
         else:
             DinvIplusZtZD = DinvIplusZtZD[localnotconverged, :, :]
 
-        # Spatially varying design
+        # Design varies across models
         if XtX.shape[0] > 1:
 
             XtX = XtX[localnotconverged, :, :]
@@ -1241,7 +1244,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 
         # Update n
         if hasattr(n, "ndim"):
-            # Check if n varies with voxel
+            # Check if n varies with model
             if n.shape[0] > 1:
                 if n.ndim == 1:
                     n = n[localnotconverged]
@@ -1275,8 +1278,8 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 
 # ============================================================================
 # 
-# This below function performs pseudo-Simplified Fisher Scoring for the Mass
-# Univariate Linear Mixed Model. It is based on the update rules:
+# This below function performs pseudo-Simplified Fisher Scoring for multiple
+# Linear Mixed Models. It is based on the update rules:
 #
 #                       beta = (X'V^(-1)X)^(-1)(X'V^(-1)Y)
 #
@@ -1308,19 +1311,19 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 #
 # ----------------------------------------------------------------------------
 #
-#  - `XtX`: X transpose multiplied by X (can be spatially varying or non
-#           -spatially varying). 
-#  - `XtY`: X transpose multiplied by Y (spatially varying).
-#  - `XtZ`: X transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying).
-#  - `YtX`: Y transpose multiplied by X (spatially varying).
-#  - `YtY`: Y transpose multiplied by Y (spatially varying).
-#  - `YtZ`: Y transpose multiplied by Z (spatially varying).
-#  - `ZtX`: Z transpose multiplied by X (can be spatially varying or non
-#           -spatially varying).
-#  - `ZtY`: Z transpose multiplied by Y (spatially varying).
-#  - `ZtZ`: Z transpose multiplied by Z (can be spatially varying or non
-#           -spatially varying). If we are looking at a random intercept
+#  - `XtX`: X transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `XtY`: X transpose multiplied by Y (varies across models).
+#  - `XtZ`: X transpose multiplied by Z (can vary across models or can be
+#           fixed across models). 
+#  - `YtX`: Y transpose multiplied by X (varies across models).
+#  - `YtY`: Y transpose multiplied by Y (varies across models).
+#  - `YtZ`: Y transpose multiplied by Z (varies across models).
+#  - `ZtX`: Z transpose multiplied by X (can vary across models or can be
+#           fixed across models). 
+#  - `ZtY`: Z transpose multiplied by Y (varies across models).
+#  - `ZtZ`: Z transpose multiplied by Z (can vary across models or can be
+#           fixed across models). If we are looking at a random intercept
 #           design the variable ZtZ only holds the diagonal elements of the
 #           matrix Z'Z.
 # - `nlevels`: A vector containing the number of levels for each factor, 
@@ -1331,15 +1334,10 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 #              random effects and the second factor has 1 random effect.
 #  - `tol`: A scalar tolerance value. Iteration stops once successive 
 #           log-likelihood values no longer exceed `tol`.
-#  - `n`: The number of observations (can be spatially varying or non
-#         -spatially varying). 
-#
-#  - `reml`: This a backdoor option for restricted maximum likelihood 
-#            estimation. As BLMM is aimed at the high n setting it is 
-#            unlikely this option will be useful and therefore isn't
-#            implemented everywhere or offered to users as an option
-#            currently.
-#
+#  - `n`: The number of observations (can vary across models or can be
+#         fixed across models). 
+#  - `reml`: Restricted maximum likelihood estimation. Default: False.
+# 
 # ----------------------------------------------------------------------------
 #
 # And returns:
@@ -1347,7 +1345,7 @@ def SFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,
 # ----------------------------------------------------------------------------
 #
 #  - `savedparams`: \theta_h in the previous notation; the vector (beta, 
-#                   sigma2, vech(D1),...vech(Dr)) for every voxel.
+#                   sigma2, vech(D1),...vech(Dr)) for every model.
 #
 # ============================================================================
 def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=False):
@@ -1365,7 +1363,7 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
     # Number of fixed effects, p
     p = XtX.shape[1]
 
-    # Number of voxels, v
+    # Number of models, v
     v = XtY.shape[0]
     
     # ------------------------------------------------------------------------------
@@ -1450,9 +1448,9 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
         permdict[str(k)] = None
 
     # ------------------------------------------------------------------------------
-    # Converged voxels and parameter saving
+    # Converged models and parameter saving
     # ------------------------------------------------------------------------------
-    # Vector checking if all voxels converged
+    # Vector checking if all models converged
     converged_global = np.zeros(v)
     
     # Vector of saved parameters which have converged
@@ -1486,12 +1484,12 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
         nit = nit + 1
             
         # --------------------------------------------------------------------------
-        # Update loglikelihood and number of voxels
+        # Update loglikelihood and number of models
         # --------------------------------------------------------------------------
         # Change current likelihood to previous
         llhprev = llhcurr
         
-        # Work out how many voxels are left
+        # Work out how many models are left
         v_iter = XtY.shape[0]
         
         # --------------------------------------------------------------------------
@@ -1611,12 +1609,12 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
         lam[llhprev>llhcurr] = lam[llhprev>llhcurr]/2
         
         # --------------------------------------------------------------------------
-        # Work out which voxels converged
+        # Work out which models converged
         # --------------------------------------------------------------------------
-        # Obatin indices of converged voxels
+        # Obatin indices of converged models
         indices_ConAfterIt, indices_notConAfterIt, indices_ConDuringIt, localconverged, localnotconverged = getConvergedIndices(converged_global, (np.abs(llhprev-llhcurr)<tol))
 
-        # Record which voxels converged.
+        # Record which models converged.
         converged_global[indices_ConDuringIt] = 1
 
         # --------------------------------------------------------------------------
@@ -1630,7 +1628,7 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
             # Get vech form of D_k
             vech_Dk = mat2vech3D(Ddict[k][localconverged,:,:])
             
-            # Make sure it has correct shape (i.e. shape (num voxels converged, num 
+            # Make sure it has correct shape (i.e. shape (num models converged, num 
             # random effects for factor k squared, 1))
             vech_Dk = vech_Dk.reshape(len(localconverged),nraneffs[k]*(nraneffs[k]+1)//2,1)
             savedparams[indices_ConDuringIt,FishIndsDk[k]:FishIndsDk[k+1],:]=vech_Dk
@@ -1645,7 +1643,7 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
         YtZ = YtZ[localnotconverged, :, :]
         ete = ete[localnotconverged, :, :]
 
-        # Spatially varying design
+        # Design varies across models
         if XtX.shape[0] > 1:
 
             XtX = XtX[localnotconverged, :, :]
@@ -1670,7 +1668,7 @@ def pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, 
 
         # Update n
         if hasattr(n, "ndim"):
-            # Check if n varies with voxel
+            # Check if n varies with model
             if n.shape[0] > 1:
                 if n.ndim == 1:
                     n = n[localnotconverged]
