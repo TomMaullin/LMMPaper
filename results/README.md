@@ -3,7 +3,7 @@
 This folder contains 4 Python notebooks. These notebooks detail how the code used in this repository may be used to run;
 
  - `ParameterEstimationSimulations.ipynb`: The parameter estimation simulations.
- - `TStatisticSimulations.ipynb`: The T statistic simulations.
+ - `TStatisticSimulations.ipynb`: The T-statistic simulations.
  - `SATsExample.ipynb`: The SAT score example.
  - `TwinsExample.ipynb`: The twin study example.
 
