@@ -57,10 +57,10 @@ from npMatrix2d import *
 #             model.
 # - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
 #                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
-#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     See Appendix 6.7.2 of the LMM Fisher Scoring paper for 
 #                     more information. 
 # - Constrmat2nd: A constraint matrix which maps the vector [\tilde{Tau2}_0,...
-#                 \tilde{Tau2}_r] to \tau2. See Appendix 5.7.2 of the LMM
+#                 \tilde{Tau2}_r] to \tau2. See Appendix 6.7.2 of the LMM
 #                 Fisher Scoring paper for more information.
 # - reml: Restricted maximum likelihood estimation. Default: False.
 #
@@ -415,7 +415,7 @@ def pFS_ACE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipC, Constrmat1stD
 #             model.
 # - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
 #                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
-#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     See Appendix 6.7.2 of the LMM Fisher Scoring paper for 
 #                     more information. 
 #
 # ----------------------------------------------------------------------------
@@ -602,7 +602,7 @@ def get_covB_ACE_2D(X, Ddict, sigma2, nlevels, nraneffs):
 #             random effects and the second factor has 1 random effect.
 # - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
 #                     `k` in the dictionary must map vec(D_k) to \tilde{Tau2}_k.
-#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     See Appendix 6.7.2 of the LMM Fisher Scoring paper for 
 #                     more information. 
 #
 # ----------------------------------------------------------------------------
@@ -716,7 +716,7 @@ def get_dS2_ACE_2D(L, X, Ddict, tau2, sigma2, nlevels, nraneffs, Constrmat1stDic
 #             random effects and the second factor has 1 random effect.
 # - Constrmat1stDict: A dictionary of constraint matrices. The entry with key 
 #                     `k` in the dictionary must map vec(D_k) to \tilde{Tau}_k.
-#                     See Appendix 5.7.2 of the LMM Fisher Scoring paper for 
+#                     See Appendix 6.7.2 of the LMM Fisher Scoring paper for 
 #                     more information. 
 # - n: The total number of observations.
 #
