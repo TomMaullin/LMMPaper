@@ -12,9 +12,9 @@ from npMatrix2d import *
 # project. The methods given here are:
 #
 # - `FS`: Fisher Scoring
-# - `pFS`: Pseudo-Fisher Scoring
+# - `fFS`: Full-Fisher Scoring
 # - `SFS`: Simplified Fisher Scoring
-# - `pFS`: Pseudo-Simplified Fisher Scoring
+# - `fSFS`: Full-Simplified Fisher Scoring
 # - `cSFS`: Cholesky Simplified Fisher 
 #
 # ----------------------------------------------------------------------------
@@ -693,7 +693,7 @@ def FS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n,
 
 # ============================================================================
 # 
-# This below function performs pesudo Fisher Scoring for the Linear Mixed 
+# This below function performs full Fisher Scoring for the Linear Mixed 
 # Model. It is based on the update rule:
 #
 #     \theta_f = \theta_f + lam*I(\theta_f)^+ (dl/d\theta_f)
@@ -705,9 +705,7 @@ def FS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n,
 #
 # Note that, as \theta_f is written in terms of 'vec', rather than 'vech',
 # (full  vector, 'f', rather than half-vector, 'h'), the information matrix
-# will have repeated rows (due to \theta_f having repeated entries). Because
-# of this, this method is based on the "pseudo-Inverse" (represented by the 
-# + above), hence the name.
+# will have repeated rows (due to \theta_f having repeated entries).
 #
 # ----------------------------------------------------------------------------
 #
@@ -746,7 +744,7 @@ def FS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n,
 #  - `nit`: The number of iterations taken to converge.
 #
 # ============================================================================
-def pFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=False, init_paramVector=None):
+def fFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=False, init_paramVector=None):
     
     # ------------------------------------------------------------------------------
     # Useful scalars
@@ -1039,7 +1037,7 @@ def pFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n
 
 # ============================================================================
 # 
-# This below function performs pseudo-Simplified Fisher Scoring for the Linear
+# This below function performs full Simplified Fisher Scoring for the Linear
 # Mixed Model. It is based on the update rules:
 #
 #               beta = (X'V^(-1)X)^(-1)(X'V^(-1)Y)
@@ -1059,9 +1057,7 @@ def pFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n
 #
 # Note that, the updates are written in terms of 'vec', rather than 'vech',
 # (full  vector, 'f', rather than half-vector, 'h'), the information matrix
-# will have repeated rows (due to vec(D_k) having repeated entries). Because
-# of this, this method is based on the "pseudo-Inverse" (represented by the 
-# + above), hence the name.
+# will have repeated rows (due to vec(D_k) having repeated entries). 
 #
 # The name "Simplified" here comes from a convention adopted in (Demidenko 
 # 2014).
@@ -1103,7 +1099,7 @@ def pFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n
 #  - `nit`: The number of iterations taken to converge.
 #
 # ============================================================================
-def pSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=False, init_paramVector=None):
+def fSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=False, init_paramVector=None):
     
     # ------------------------------------------------------------------------------
     # Useful scalars

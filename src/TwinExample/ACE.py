@@ -10,7 +10,7 @@ from npMatrix2d import *
 
 # ============================================================================
 # 
-# This below function performs pseudo Simplified Fisher Scoring for the ACE
+# This below function performs full Simplified Fisher Scoring for the ACE
 # Linear Mixed Model. It is based on the update rules:
 #
 #               beta = (X'V^(-1)X)^(-1)(X'V^(-1)Y)
@@ -74,7 +74,7 @@ from npMatrix2d import *
 #  - `llh`: The log-likelihood value following optimization.
 #
 # ============================================================================
-def pFS_ACE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipC, Constrmat1stDict, Constrmat2nd, reml=False):
+def fFS_ACE2D(X, Y, nlevels, nraneffs, tol, n, KinshipA, KinshipC, Constrmat1stDict, Constrmat2nd, reml=False):
     
     # ------------------------------------------------------------------------------
     # Product matrices of use

@@ -203,7 +203,7 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         indexVec = np.append(indexVec,'swdf')
 
     # Construct dataframe
-    results = pd.DataFrame(index=indexVec, columns=['Truth', 'FS', 'pFS', 'SFS', 'pSFS', 'cSFS'])
+    results = pd.DataFrame(index=indexVec, columns=['Truth', 'FS', 'fFS', 'SFS', 'fSFS', 'cSFS'])
 
     # ------------------------------------------------------------------------------------
     # Truth
@@ -266,7 +266,7 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
 
 
     #===============================================================================
-    # pSFS
+    # fSFS
     #===============================================================================
 
     # Get the indices for the individual random factor covariance parameters.
@@ -275,9 +275,9 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
     for k in np.arange(len(nlevels)):
         DkInds[k+1] = np.int(DkInds[k] + nraneffs[k]*(nraneffs[k]+1)//2)
 
-    # Run Pseudo Simplified Fisher Scoring
+    # Run Full Simplified Fisher Scoring
     t1 = time.time()
-    paramVector_pSFS,_,nit,llh = pSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=REML, init_paramVector=None)
+    paramVector_fSFS,_,nit,llh = fSFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=REML, init_paramVector=None)
     t2 = time.time()
 
     # Add back on constant term for llh
@@ -287,27 +287,27 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         llh = llh - n/2*np.log(2*np.pi)
 
     # Record Time and number of iterations
-    results.at['Time','pSFS']=t2-t1
-    results.at['nit','pSFS']=nit
-    results.at['llh','pSFS']=llh
+    results.at['Time','fSFS']=t2-t1
+    results.at['nit','fSFS']=nit
+    results.at['llh','fSFS']=llh
 
     # Record parameters
     for i in np.arange(3,p+qu+4):
 
-        results.at[indexVec[i],'pSFS']=paramVector_pSFS[i-3,0]
+        results.at[indexVec[i],'fSFS']=paramVector_fSFS[i-3,0]
 
     # Record D*sigma2
     for i in np.arange(4+p,p+qu+4):
-        results.at[indexVec[i+qu],'pSFS']=paramVector_pSFS[p,0]*paramVector_pSFS[i-3,0]
+        results.at[indexVec[i+qu],'fSFS']=paramVector_fSFS[p,0]*paramVector_fSFS[i-3,0]
          
     # If running a T statistic simulation...
     if runDF:
 
         # Get T statistic, p value and Satterthwaite degrees of freedom
-        T,Pval,df = simT(paramVector_pSFS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n)
-        results.at[indexVec[p+4+2*qu],'pSFS']=T[0,0]
-        results.at[indexVec[p+5+2*qu],'pSFS']=Pval[0,0]
-        results.at[indexVec[p+6+2*qu],'pSFS']=df[0,0]
+        T,Pval,df = simT(paramVector_fSFS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n)
+        results.at[indexVec[p+4+2*qu],'fSFS']=T[0,0]
+        results.at[indexVec[p+5+2*qu],'fSFS']=Pval[0,0]
+        results.at[indexVec[p+6+2*qu],'fSFS']=df[0,0]
 
     #===============================================================================
     # cSFS
@@ -421,12 +421,12 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         results.at[indexVec[p+6+2*qu],'SFS']=df[0,0]
 
     #===============================================================================
-    # pFS
+    # fFS
     #===============================================================================
 
-    # Run Pseudo Fisher Scoring
+    # Run Full Fisher Scoring
     t1 = time.time()
-    paramVector_pFS,_,nit,llh = pFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=REML, init_paramVector=None)
+    paramVector_fFS,_,nit,llh = fFS2D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol, n, reml=REML, init_paramVector=None)
     t2 = time.time()
 
     # Add back on constant term for llh
@@ -436,26 +436,26 @@ def runSim(simInd, desInd, OutDir, mode='param', REML=False):
         llh = llh - n/2*np.log(2*np.pi)
 
     # Record time and number of iterations
-    results.at['Time','pFS']=t2-t1
-    results.at['nit','pFS']=nit
-    results.at['llh','pFS']=llh
+    results.at['Time','fFS']=t2-t1
+    results.at['nit','fFS']=nit
+    results.at['llh','fFS']=llh
 
     # Save parameters
     for i in np.arange(3,p+qu+4):
-        results.at[indexVec[i],'pFS']=paramVector_pFS[i-3,0]
+        results.at[indexVec[i],'fFS']=paramVector_fFS[i-3,0]
 
     # Record D*sigma2
     for i in np.arange(4+p,p+qu+4):
-        results.at[indexVec[i+qu],'pFS']=paramVector_pFS[p,0]*paramVector_pFS[i-3,0]
+        results.at[indexVec[i+qu],'fFS']=paramVector_fFS[p,0]*paramVector_fFS[i-3,0]
 
     # If running a T statistic simulation...
     if runDF:
 
         # Get T statistic, p value and Satterthwaite degrees of freedom
-        T,Pval,df = simT(paramVector_pFS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n)
-        results.at[indexVec[p+4+2*qu],'pFS']=T[0,0]
-        results.at[indexVec[p+5+2*qu],'pFS']=Pval[0,0]
-        results.at[indexVec[p+6+2*qu],'pFS']=df[0,0]
+        T,Pval,df = simT(paramVector_fFS, XtX, XtY, XtZ, YtX, YtY, YtZ, ZtX, ZtY, ZtZ, nraneffs, nlevels, n)
+        results.at[indexVec[p+4+2*qu],'fFS']=T[0,0]
+        results.at[indexVec[p+5+2*qu],'fFS']=Pval[0,0]
+        results.at[indexVec[p+6+2*qu],'fFS']=df[0,0]
 
     # Save results
     results.to_csv(os.path.join(OutDir,'Sim'+str(simInd)+'_Design'+str(desInd)+'_results.csv'))
@@ -488,7 +488,7 @@ def performanceTables(desInd, OutDir, nsim=1000):
     row = ['sim'+str(i) for i in range(1,nsim+1)]
 
     # Make column indices
-    col = ['FS','pFS','SFS','pSFS','cSFS','lmer']
+    col = ['FS','fFS','SFS','fSFS','cSFS','lmer']
 
     #-----------------------------------------------------------------------------
     # Work out timing stats
@@ -619,7 +619,7 @@ def differenceMetrics(desInd, OutDir, nsim=1000):
     row = ['sim'+str(i) for i in range(1,nsim+1)]
 
     # Make column indices
-    col = ['FS','pFS','SFS','pSFS','cSFS','lmer']
+    col = ['FS','fFS','SFS','fSFS','cSFS','lmer']
 
     #-----------------------------------------------------------------------------
     # Work out absolute difference metrics for lmer
@@ -996,7 +996,7 @@ def get_VarhatLB2D(X, Z, beta, sigma2, D, L, nlevels, nraneffs, tol):
     ZtZ = Z.transpose(0,2,1) @ Z
 
     # Get parameter vector
-    paramVec = pSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,reml=True)
+    paramVec = fSFS3D(XtX, XtY, ZtX, ZtY, ZtZ, XtZ, YtZ, YtY, YtX, nlevels, nraneffs, tol,n,reml=True)
 
     # Get the indices in the paramvector corresponding to D matrices
     IndsDk = np.int32(np.cumsum(nraneffs*(nraneffs+1)//2) + p + 1)
