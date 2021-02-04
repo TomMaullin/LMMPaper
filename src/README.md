@@ -31,7 +31,6 @@ The `SATExample` folder contains the following file:
 
 The `Simulations` folder contains the following files:
 
- - `Boxplots.r`: Script used to generate degrees of freedom boxplots using simulation results.
  - `LMMPaperSim.py`: Python functions for setting up simulations and running the Fisher Scoring methods on the simulated data. 
  - `LMMPaperSim.r`: R functions for running `lmer` on the simulated data.
  - `LMMPaperSim.sh`: Bash scripts that may be adapted to run the simulations on a cluster set-up.
